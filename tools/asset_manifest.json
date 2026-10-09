@@ -36,19 +36,19 @@
     "materials": 5
   },
   "owl": {
-    "vertices": 208,
-    "triangles": 312,
-    "expanded_vertices": 936,
+    "vertices": 365,
+    "triangles": 582,
+    "expanded_vertices": 1746,
     "bounds": [
       [
-        -0.36,
+        -0.3625,
         0.0,
-        -0.32
+        -0.38
       ],
       [
-        0.36,
-        1.29,
-        0.37
+        0.3625,
+        1.28,
+        0.37039494285352603
       ]
     ],
     "materials": 8

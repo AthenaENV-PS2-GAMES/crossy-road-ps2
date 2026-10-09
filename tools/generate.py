@@ -64,33 +64,72 @@ def chicken(feather=(.98, .96, .96), wing_rgb=(.92, .89, .92)):
     return m
 
 def owl():
+    """Compact voxel owl, facing -Z; grounded feet and a <600-triangle budget."""
     m = Mesh()
-    body = m.material("owl_body", (.78, .66, .96))
-    face = m.material("owl_face", (.95, .93, 1.0))
-    mid = m.material("owl_mid", (.58, .36, .90))
-    dark = m.material("owl_dark", (.30, .15, .62))
-    eye = m.material("owl_eye", (1.0, .74, .10))
-    pupil = m.material("owl_pupil", (.08, .06, .10))
-    beak = m.material("owl_beak", (.20, .19, .24))
-    foot = m.material("owl_foot", (.14, .13, .16))
-    m.box((.50, .56, .46), body, translate=(0, .40, .01))
-    m.box((.52, .30, .48), body, translate=(0, .83, 0))
-    m.box((.54, .07, .50), mid, translate=(0, 1.01, 0))
-    m.box((.34, .32, .02), face, translate=(0, .46, -.225))
-    m.box((.42, .26, .02), face, translate=(0, .80, -.245))
-    for x in (-1, 1):
-        m.box((.13, .05, .03), dark, translate=(x * .11, .94, -.255))
-        m.box((.11, .10, .02), eye, translate=(x * .11, .85, -.26))
-        m.box((.05, .07, .01), pupil, translate=(x * .085, .845, -.272))
-        m.box((.11, .20, .11), mid, translate=(x * .19, 1.13, .02))
-        m.box((.06, .08, .06), dark, translate=(x * .21, 1.25, .02))
-        m.box((.08, .40, .34), dark, translate=(x * .29, .48, .04))
-        m.box((.06, .14, .26), mid, translate=(x * .33, .52, .03))
-        m.box((.06, .08, .06), foot, translate=(x * .11, .08, -.02))
-        m.box((.12, .05, .18), foot, translate=(x * .11, .025, -.06))
-    m.box((.08, .13, .08), beak, translate=(0, .73, -.28))
-    m.box((.24, .10, .14), dark, translate=(0, .24, .28))
-    m.box((.18, .06, .10), mid, translate=(0, .17, .32))
+    body = m.material("owl_body", (.64, .43, .86))
+    face = m.material("owl_face", (.94, .87, 1.0))
+    mid = m.material("owl_mid", (.46, .25, .72))
+    dark = m.material("owl_dark", (.25, .12, .43))
+    eye = m.material("owl_eye", (1.0, .72, .12))
+    pupil = m.material("owl_pupil", (.075, .045, .12))
+    beak = m.material("owl_beak", (.96, .48, .10))
+    foot = m.material("owl_foot", (.43, .25, .20))
+
+    def prism(outline, depth, material, **transform):
+        # Counterclockwise XY outline, extruded along Z; flat outward normals.
+        n = len(outline)
+        vertices = [(x, y, z) for z in (-depth / 2, depth / 2) for x, y in outline]
+        faces = []
+        for i in range(1, n - 1):
+            faces.extend(((0, i + 1, i), (n, n + i, n + i + 1)))
+        for i in range(n):
+            j = (i + 1) % n
+            faces.extend(((i, j, n + j), (i, n + j, n + i)))
+        m.part(vertices, faces, material, **transform)
+
+    def clipped(width, height, depth, material, **transform):
+        x, y = width / 2, height / 2
+        cut = min(width, height) * .22
+        prism([(-x + cut, -y), (x - cut, -y), (x, -y + cut),
+               (x, y - cut), (x - cut, y), (-x + cut, y),
+               (-x, y - cut), (-x, -y + cut)], depth, material, **transform)
+
+    clipped(.49, .62, .43, body, translate=(0, .43, .02))
+    clipped(.59, .43, .48, body, translate=(0, .865, 0))
+    clipped(.34, .40, .025, face, translate=(0, .425, -.205))
+    for side in (-1, 1):
+        # Paired facial discs and large amber eyes read clearly at game scale.
+        x = side * .145
+        clipped(.275, .29, .035, dark, translate=(x, .87, -.247))
+        clipped(.245, .255, .025, face, translate=(x, .865, -.270))
+        clipped(.15, .17, .018, eye, translate=(x, .875, -.290))
+        m.box((.068, .113, .016), pupil, translate=(x, .875, -.305))
+        m.box((.031, .036, .012), face, translate=(x - .018, .910, -.319))
+        # Broad tapered ear tufts replace the old stacked square posts.
+        prism([(-.08, 0), (.08, 0), (side * .07, .24)], .23,
+              mid, translate=(side * .205, 1.04, .025))
+        prism([(-.037, 0), (.037, 0), (side * .035, .13)], .012,
+              body, translate=(side * .22, 1.073, -.098))
+        clipped(.135, .40, .32, dark,
+                translate=(side * .277, .46, .035), rotate=(0, 0, side * .10))
+        for index in range(2):
+            m.box((.035, .24 - index * .05, .105), mid,
+                  translate=(side * .345, .49 - index * .05, -.04 + index * .12))
+        m.box((.07, .10, .07), foot, translate=(side * .115, .09, .005))
+        for toe in (-.042, .042):
+            m.box((.052, .05, .16), beak,
+                  translate=(side * .115 + toe, .025, -.055))
+        for y in (.36, .49):
+            prism([(-.03, .025), (0, -.022), (.03, .025)], .012,
+                  body, translate=(side * .075, y, -.224))
+    # A projecting diamond beak and a three-feather fan complete the silhouette.
+    m.part([(-.055, .785, -.286), (0, .69, -.286), (.055, .785, -.286),
+            (0, .82, -.286), (0, .765, -.38)],
+           [(0, 4, 1), (1, 4, 2), (2, 4, 3), (3, 4, 0), (0, 2, 3), (0, 1, 2)], beak)
+    for x in (-.075, 0, .075):
+        m.box((.09, .07, .21), mid if x == 0 else dark,
+              translate=(x, .20, .26), rotate=(-.25, 0, -x))
+    assert len(m.triangles) <= 600, "owl exceeds its scene geometry budget"
     return m
 
 def ground_shadow(m, width, depth, rgb, offset=(.23, .05)):
