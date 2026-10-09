@@ -1,0 +1,8 @@
+newmtl lily
+Kd 0.3 0.7 0.38
+
+newmtl lily_dark
+Kd 0.22 0.56 0.3
+
+newmtl lily_shadow
+Kd 0.25 0.6 0.8

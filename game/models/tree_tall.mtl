@@ -1,0 +1,11 @@
+newmtl bark
+Kd 0.4 0.28 0.17
+
+newmtl leaf
+Kd 0.63 0.77 0.15
+
+newmtl leaf_lower
+Kd 0.56 0.68 0.12
+
+newmtl shadow
+Kd 0.49 0.63 0.24

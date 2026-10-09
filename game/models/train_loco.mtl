@@ -1,0 +1,14 @@
+newmtl glass
+Kd 0.055 0.075 0.105
+
+newmtl chassis
+Kd 0.16 0.16 0.2
+
+newmtl loco
+Kd 0.98 0.8 0.22
+
+newmtl stripe
+Kd 0.86 0.18 0.16
+
+newmtl lamp
+Kd 1 0.96 0.75

@@ -1,0 +1,8 @@
+newmtl grass
+Kd 0.72 0.93 0.35
+
+newmtl grass_out
+Kd 0.576 0.744 0.28
+
+newmtl earth
+Kd 0.47 0.33 0.22

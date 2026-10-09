@@ -1,0 +1,5 @@
+newmtl stone
+Kd 0.64 0.58 0.7
+
+newmtl shadow
+Kd 0.49 0.63 0.24

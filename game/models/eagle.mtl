@@ -1,0 +1,14 @@
+newmtl eagle_body
+Kd 0.36 0.22 0.15
+
+newmtl eagle_wing
+Kd 0.3 0.18 0.12
+
+newmtl eagle_head
+Kd 0.97 0.96 0.94
+
+newmtl eagle_beak
+Kd 0.99 0.78 0.15
+
+newmtl eagle_eye
+Kd 0.08 0.06 0.06

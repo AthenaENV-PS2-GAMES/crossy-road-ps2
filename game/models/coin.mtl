@@ -1,0 +1,8 @@
+newmtl coin_rim
+Kd 1 0.84 0.16
+
+newmtl coin_face
+Kd 0.96 0.64 0.08
+
+newmtl coin_mark
+Kd 1 0.93 0.55

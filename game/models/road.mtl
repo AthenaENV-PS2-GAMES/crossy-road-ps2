@@ -1,0 +1,8 @@
+newmtl asphalt
+Kd 0.3 0.32 0.37
+
+newmtl asphalt_out
+Kd 0.24 0.256 0.296
+
+newmtl earth
+Kd 0.47 0.33 0.22

@@ -1,0 +1,11 @@
+newmtl glass
+Kd 0.055 0.075 0.105
+
+newmtl chassis
+Kd 0.16 0.16 0.2
+
+newmtl wagon
+Kd 0.55 0.64 0.78
+
+newmtl wagon_roof
+Kd 0.86 0.88 0.92

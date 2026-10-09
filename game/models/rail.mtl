@@ -1,0 +1,14 @@
+newmtl gravel
+Kd 0.4 0.38 0.43
+
+newmtl gravel_out
+Kd 0.32 0.304 0.344
+
+newmtl earth
+Kd 0.47 0.33 0.22
+
+newmtl sleeper
+Kd 0.43 0.31 0.24
+
+newmtl rail
+Kd 0.66 0.68 0.74

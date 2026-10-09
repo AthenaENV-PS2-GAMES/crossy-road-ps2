@@ -1,0 +1,11 @@
+newmtl pole_red
+Kd 0.86 0.16 0.16
+
+newmtl pole_white
+Kd 0.96 0.95 0.95
+
+newmtl signal_head
+Kd 0.1 0.1 0.12
+
+newmtl signal_off
+Kd 0.32 0.07 0.07

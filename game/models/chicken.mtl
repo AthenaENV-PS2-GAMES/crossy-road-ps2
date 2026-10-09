@@ -1,0 +1,14 @@
+newmtl feather
+Kd 0.98 0.96 0.96
+
+newmtl wing
+Kd 0.92 0.89 0.92
+
+newmtl orange
+Kd 1 0.35 0.13
+
+newmtl comb
+Kd 0.98 0.22 0.27
+
+newmtl eye
+Kd 0.12 0.06 0.07

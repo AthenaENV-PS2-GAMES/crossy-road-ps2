@@ -1,0 +1,11 @@
+newmtl log_side
+Kd 0.5 0.24 0.21
+
+newmtl log_top
+Kd 0.64 0.34 0.29
+
+newmtl log_end
+Kd 0.74 0.52 0.4
+
+newmtl log_shadow
+Kd 0.25 0.6 0.8
