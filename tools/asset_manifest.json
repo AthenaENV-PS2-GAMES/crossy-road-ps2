@@ -35,6 +35,24 @@
     ],
     "materials": 5
   },
+  "owl": {
+    "vertices": 208,
+    "triangles": 312,
+    "expanded_vertices": 936,
+    "bounds": [
+      [
+        -0.36,
+        0.0,
+        -0.32
+      ],
+      [
+        0.36,
+        1.29,
+        0.37
+      ]
+    ],
+    "materials": 8
+  },
   "tree": {
     "vertices": 24,
     "triangles": 38,

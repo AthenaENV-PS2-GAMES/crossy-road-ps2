@@ -1,13 +1,3 @@
-"""Original M5 audio, synthesised from scratch (stdlib only, no samples).
-
-Sound effects: 16-bit mono WAVs written to a temporary folder and converted
-to the SPU2 ADPCM .adp files Sound.Sfx loads, with AthenaEnv's
-tools/wav2adp.js (set ATHENA_ENV if AthenaEnv is not in ~/AthenaEnv).
-
-Streams (game/music): a chiptune loop for the title and game-over screens and
-an ambience loop (wind, birds) for play, kept as 22050 Hz mono WAV so audsrv
-streams them without decoding on the EE.
-"""
 import argparse
 import math
 import os
@@ -21,18 +11,14 @@ import wave
 RATE = 22050
 TAU = 2 * math.pi
 
-
 def seconds(s):
     return int(s * RATE)
 
-
 def env(i, n, attack=.005, release=None):
-    """Linear attack then exponential-ish decay over n samples."""
     t = i / RATE
     a = min(1, t / attack) if attack > 0 else 1
     u = i / max(1, n - 1)
     return a * (1 - u) ** (release if release else 2)
-
 
 def sweep(f0, f1, length, shape="sine", decay=2, attack=.004, gain=1):
     n, out, phase = seconds(length), [], 0.0
@@ -46,20 +32,17 @@ def sweep(f0, f1, length, shape="sine", decay=2, attack=.004, gain=1):
             v = .6 if math.sin(phase) >= 0 else -.6
         elif shape == "tri":
             v = 2 / math.pi * math.asin(math.sin(phase))
-        else:  # saw
+        else:
             v = (phase / math.pi) % 2 - 1
         out.append(v * env(i, n, attack, decay) * gain)
     return out
 
-
 def noise(length, decay=2, cutoff=.2, attack=.002, gain=1, seed=1):
-    """One-pole low-passed white noise; cutoff 0..1 (fraction of a sample step)."""
     rng, n, out, y = random.Random(seed), seconds(length), [], 0.0
     for i in range(n):
         y += cutoff * (rng.uniform(-1, 1) - y)
         out.append(y * env(i, n, attack, decay) * gain)
     return out
-
 
 def bell(freq, length, partials=((1, 1), (2.76, .5), (5.4, .25), (8.9, .12)), decay=3, gain=1):
     n, out = seconds(length), []
@@ -69,9 +52,7 @@ def bell(freq, length, partials=((1, 1), (2.76, .5), (5.4, .25), (8.9, .12)), de
         out.append(v * min(1, t / .002) * gain)
     return out
 
-
 def mix(*parts):
-    """parts: (offset seconds, samples) pairs."""
     n = max(seconds(o) + len(s) for o, s in parts)
     out = [0.0] * n
     for o, s in parts:
@@ -80,65 +61,49 @@ def mix(*parts):
             out[k + i] += v
     return out
 
-
 def normalise(samples, peak=.9):
     m = max(abs(v) for v in samples) or 1
     return [v * peak / m for v in samples]
 
-
 def hop():
-    # Soft rising "pip" with a breathy edge, like a light jump.
     return mix((0, sweep(380, 760, .075, "tri", decay=1.6)),
                (0, noise(.04, decay=3, cutoff=.5, gain=.18, seed=2)))
-
 
 def bump():
     return mix((0, sweep(170, 90, .09, "sine", decay=2.5)),
                (0, noise(.05, decay=4, cutoff=.08, gain=.5, seed=3)))
 
-
 def land_log():
-    # Hollow wooden knock.
     return mix((0, sweep(420, 300, .09, "sine", decay=5, attack=.001)),
                (0, sweep(1150, 900, .03, "sine", decay=4, attack=.001, gain=.35)),
                (0, noise(.02, decay=4, cutoff=.6, gain=.25, seed=4)))
-
 
 def land_lily():
     return mix((0, sweep(520, 980, .07, "sine", decay=3)),
                (0, noise(.05, decay=3, cutoff=.35, gain=.15, seed=5)))
 
-
 def coin():
-    # Two-note arcade chime (B5 then E6).
     return mix((0, bell(988, .10, ((1, 1), (2, .3), (3, .12)), decay=8)),
                (.07, bell(1319, .35, ((1, 1), (2, .3), (3, .12)), decay=6)))
 
-
 def squash():
-    # Car hit: thump, crunch and a squeaky "squawk".
     return mix((0, sweep(140, 45, .25, "sine", decay=2.2, attack=.001, gain=1.2)),
                (0, noise(.22, decay=2.5, cutoff=.45, gain=.8, seed=6)),
                (.03, sweep(900, 520, .18, "square", decay=1.4, gain=.25)))
-
 
 def splash():
     parts = [(0, noise(.55, decay=2.2, cutoff=.30, gain=1, seed=7)),
              (0, sweep(220, 80, .18, "sine", decay=2, gain=.6))]
     rng = random.Random(8)
-    for k in range(6):  # Bubbles.
+    for k in range(6):
         f = rng.uniform(500, 1100)
         parts.append((.08 + k * .055 + rng.uniform(0, .02), sweep(f, f * 1.8, .05, "sine", decay=2, gain=.22)))
     return mix(*parts)
 
-
 def bell_ding():
-    # Level-crossing bell, played on each blink of the signal.
     return bell(1480, .32, decay=7)
 
-
 def train():
-    # Horn chord (two detuned saws) over a rumble with wheel clacks.
     horn = []
     n = seconds(.9)
     p1 = p2 = p3 = 0.0
@@ -149,7 +114,6 @@ def train():
         v = ((p1 / math.pi) % 2 - 1) + ((p2 / math.pi) % 2 - 1) + .6 * ((p3 / math.pi) % 2 - 1)
         t = i / RATE
         horn.append(v * min(1, t / .03) * min(1, (n - i) / seconds(.15)) * .32)
-    # Low-pass the horn a little so it is less buzzy.
     y, soft = 0.0, []
     for v in horn:
         y += .35 * (v - y)
@@ -159,30 +123,24 @@ def train():
         parts.append((.15 + k * .14, noise(.03, decay=3, cutoff=.5, gain=.35, seed=10 + k)))
     return mix(*parts)
 
-
 def eagle():
-    # Descending screech with vibrato.
     n, out, phase = seconds(.75), [], 0.0
     for i in range(n):
         t, u = i / RATE, i / n
         f = 2600 * (1 - .45 * u) * (1 + .04 * math.sin(TAU * 28 * t))
         phase += TAU * f / RATE
-        mod = math.sin(phase * .5)  # Rough, raspy sideband.
+        mod = math.sin(phase * .5)
         v = math.sin(phase + 1.6 * mod)
         out.append(v * min(1, t / .04) * (1 - u) ** 1.2)
     return mix((0, out), (0, noise(.75, decay=1.5, cutoff=.7, attack=.04, gain=.18, seed=20)))
 
-
 def restart():
-    # Quick upward arpeggio for a new run.
     return mix((0, sweep(523, 523, .07, "square", decay=2, gain=.5)),
                (.06, sweep(659, 659, .07, "square", decay=2, gain=.5)),
                (.12, sweep(784, 784, .14, "square", decay=2.5, gain=.5)))
 
-
 def midi(note):
     return 440 * 2 ** ((note - 69) / 12)
-
 
 def tone(freq, length, shape, decay=3, gain=1, duty=.5):
     n, out = seconds(length), []
@@ -190,16 +148,14 @@ def tone(freq, length, shape, decay=3, gain=1, duty=.5):
         ph = (i * freq / RATE) % 1
         if shape == "pulse":
             v = .5 if ph < duty else -.5
-        else:  # tri
+        else:
             v = 4 * abs(ph - .5) - 1
         t = i / RATE
         out.append(v * min(1, t / .004) * math.exp(-t * decay) * min(1, (n - i) / 60) * gain)
     return out
 
-
 def title_music():
-    """8 bars at 150 bpm (12.8 s, loops exactly): C, Am, F, G."""
-    step = .2  # Eighth note.
+    step = .2
     lead = [72, 76, 79, 76, 84, None, 79, None, 76, None, 79, 81, 79, 76, 72, None,
             69, 72, 76, 72, 81, None, 76, None, 72, None, 76, 77, 76, 72, 69, None,
             65, 69, 72, 69, 77, None, 72, None, 69, None, 72, 74, 72, 69, 65, None,
@@ -210,24 +166,22 @@ def title_music():
         t = k * step
         if note is not None:
             parts.append((t, tone(midi(note), .19, "pulse", decay=6, gain=.30, duty=.25)))
-            parts.append((t + .1, tone(midi(note + 12), .09, "pulse", decay=12, gain=.06, duty=.5)))  # Echo.
+            parts.append((t + .1, tone(midi(note + 12), .09, "pulse", decay=12, gain=.06, duty=.5)))
         root = roots[k // 16] + (12 if k % 2 else 0)
         parts.append((t, tone(midi(root), .19, "tri", decay=4, gain=.45)))
-        if k % 4 == 0:  # Kick on the beat.
+        if k % 4 == 0:
             parts.append((t, sweep(130, 45, .12, "sine", decay=2.5, attack=.001, gain=.55)))
-        if k % 2 == 1:  # Off-beat hat.
+        if k % 2 == 1:
             parts.append((t, noise(.04, decay=4, cutoff=.9, gain=.12, seed=100 + k)))
-        if k % 8 == 4:  # Snare.
+        if k % 8 == 4:
             parts.append((t, noise(.12, decay=3, cutoff=.5, gain=.28, seed=200 + k)))
     out = mix(*parts)
     total = seconds(len(lead) * step)
-    for i in range(total, len(out)):  # Fold the tail back onto the start: seamless loop.
+    for i in range(total, len(out)):
         out[i - total] += out[i]
     return out[:total]
 
-
 def ambience():
-    """24 s loop: gusting wind (periodic in the loop) and scattered birdsong."""
     length = 24
     n = seconds(length)
     rng = random.Random(30)
@@ -238,7 +192,7 @@ def ambience():
         y1 += .015 * (rng.uniform(-1, 1) - y1)
         y2 += .04 * (y1 - y2)
         out.append(y2 * gust * 9)
-    fade = seconds(1.5)  # Crossfade the noise seam.
+    fade = seconds(1.5)
     for i in range(fade):
         u = i / fade
         out[i] = out[i] * u + out[n - fade + i] * (1 - u)
@@ -259,7 +213,6 @@ def ambience():
     out = [a + b for a, b in zip(out, mix(*birds) + [0.0] * n)]
     return out
 
-
 STREAMS = {"title": (title_music, .75), "ambience": (ambience, .5)}
 
 SOUNDS = {
@@ -268,14 +221,12 @@ SOUNDS = {
     "train": (train, .9), "eagle": (eagle, .8), "restart": (restart, .55),
 }
 
-
 def write_wav(path, samples):
     with wave.open(str(path), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(RATE)
         w.writeframes(b"".join(struct.pack("<h", int(max(-1, min(1, v)) * 32767)) for v in samples))
-
 
 def main():
     root = Path(__file__).resolve().parent.parent
@@ -305,7 +256,6 @@ def main():
         wav = args.music / (name + ".wav")
         write_wav(wav, samples)
         print(f"{name:9s} {len(samples) / RATE:5.2f} s  {wav.stat().st_size:6d} bytes (stream)")
-
 
 if __name__ == "__main__":
     main()

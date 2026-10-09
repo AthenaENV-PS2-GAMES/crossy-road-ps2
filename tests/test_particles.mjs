@@ -1,4 +1,3 @@
-// Host tests for particles.js: node tests/test_particles.mjs
 import assert from "node:assert/strict";
 import {createParticles, emit, updateParticles, particleScale, clearParticles, WHITE, GOLD} from "../game/particles.js";
 

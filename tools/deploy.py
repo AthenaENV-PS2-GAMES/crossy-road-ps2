@@ -1,4 +1,3 @@
-"""Copy the M4 game to explicit destinations; requires the M3/M4 ELF (gamepad + font)."""
 import argparse
 from pathlib import Path
 import shutil

@@ -1,7 +1,3 @@
-// Sound effects: SPU2 ADPCM samples from sfx/ (tools/make_sfx.py), played
-// with a pan from the source's screen position. Streams from music/: the
-// title loop and the play ambience, one at a time. Audio is optional: if a
-// file cannot be loaded the game runs without it instead of stopping.
 const NAMES = ["hop", "bump", "land_log", "land_lily", "coin", "squash", "splash", "bell", "train",
     "eagle", "restart"];
 
@@ -30,18 +26,15 @@ export function createAudio(t) {
     return { sfx, streams, a, played: 0, track: "" };
 }
 
-// Switches the stream to `name` ("title", "ambience", or "" for silence),
-// fading in; does nothing when it already plays.
 export function track(audio, name) {
     if (audio.track === name) return;
     const a = audio.a, old = audio.streams[audio.track], next = audio.streams[name];
     audio.track = name;
     if (!next) { if (old) old.pause({ fade: a.fadeMs }); return; }
     Sound.setVolume(a.streamVolume[name]);
-    next.play({ fade: a.fadeMs }); // Replaces the old stream (audsrv has one stream voice).
+    next.play({ fade: a.fadeMs });
 }
 
-// x: world X of the source relative to the camera target; volume 0..1.
 export function play(audio, name, x, volume) {
     const s = audio.sfx[name];
     if (!s) return;
@@ -53,7 +46,6 @@ export function play(audio, name, x, volume) {
     if (s.volume > 0 && s.play() >= 0) audio.played++;
 }
 
-// Volume for a source `rows` rows away from the player: full nearby, silent at `far`.
 export function falloff(audio, rows) {
     const a = audio.a, d = Math.abs(rows);
     return d <= a.near ? 1 : d >= a.far ? 0 : 1 - (d - a.near) / (a.far - a.near);

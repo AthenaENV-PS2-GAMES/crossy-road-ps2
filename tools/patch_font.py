@@ -1,18 +1,6 @@
-"""Make retro.ttf's zero readable: the font's own "0" has a middle bar and reads
-as "8" at HUD sizes. This copies the outline of its "O" glyph (a plain zero
-shape, same bounding box and advance width) into the "0" glyph slot.
-
-Pure Python, no fontTools. The "O" outline is written over the "0" outline
-in place and zero-padded, so no table changes size; the LTSH entry is copied
-and the glyf/LTSH table checksums and head.checkSumAdjustment are recomputed.
-The source font is not modified.
-
-    python3 tools/patch_font.py ../assets/fonts/retro.ttf game/fonts/retro.ttf
-"""
 import argparse
 from pathlib import Path
 import struct
-
 
 def tables(data):
     count = struct.unpack(">H", data[4:6])[0]
@@ -23,9 +11,7 @@ def tables(data):
         out[tag.decode("latin-1")] = (record, offset, length)
     return out
 
-
 def cmap_glyph(data, cmap, code):
-    """Glyph id for `code` from the Windows Unicode BMP (3, 1) format-4 subtable."""
     count = struct.unpack(">H", data[cmap + 2:cmap + 4])[0]
     for i in range(count):
         pid, eid, sub = struct.unpack(">HHI", data[cmap + 4 + 8 * i:cmap + 12 + 8 * i])
@@ -53,11 +39,9 @@ def cmap_glyph(data, cmap, code):
             return (glyph + delta) & 0xFFFF if glyph else 0
     raise ValueError("character %r not mapped" % chr(code))
 
-
 def checksum(block):
     block = block + b"\0" * (-len(block) % 4)
     return sum(struct.unpack(">%dI" % (len(block) // 4), block)) & 0xFFFFFFFF
-
 
 def patch(source, target):
     data = bytearray(Path(source).read_bytes())
@@ -101,7 +85,6 @@ def patch(source, target):
     Path(target).parent.mkdir(parents=True, exist_ok=True)
     Path(target).write_bytes(bytes(data))
     return zero, letter
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

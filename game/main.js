@@ -21,10 +21,6 @@ Screen.setMode(mode);
 
 const memoryBefore = System.getMemoryStats();
 const c = tuning.camera, rad = Math.PI / 180, g0 = tuning.ground;
-// Two views: one full-screen camera, or (two players far apart) the leader's
-// in the top half and the other's in the bottom half. Both are full-screen
-// projections clipped by the GS scissor; each is aimed so its player sits at
-// the centre of its half.
 const cameras = [0, 1].map(() => new Camera3D.Camera({
     aspect: mode.width / height,
     fovYDegrees: c.fovYDegrees, near: c.near, far: c.far
@@ -35,16 +31,10 @@ const camOffY = c.distance * Math.sin(c.elevationDegrees * rad);
 const camOffZ = horizontal * Math.cos(c.azimuthDegrees * rad);
 const lights = new Lights.Set().setAmbient(.62, .62, .65)
     .setDirectional(0, -.35, .85, .40, .49, .49, .44);
-const shadowBatch = new Render3D.Batch(); // Chicken blob shadows (unlit), drawn first.
-const dynamicBatch = new Render3D.Batch(); // Chicken, eagle and particles.
-const HIDDEN = -50; // Instances parked below the view (trains between passes, lights off).
+const shadowBatch = new Render3D.Batch();
+const dynamicBatch = new Render3D.Batch();
+const HIDDEN = -50;
 
-// --- Instance pools ----------------------------------------------------------
-// Every instance is created here once. Rows take and return them through
-// typed-array free lists, so recycling a row allocates nothing. Pooled
-// instances are in no batch until a row slot takes them: each slot has its
-// own Render3D.Batch, rebuilt only when the slot is regenerated, so parked
-// instances cost nothing per frame (no culling, no transform).
 const GROUND = ["grass", "grass_alt", "grass_b", "grass_alt_b", "road", "road_marked", "water", "rail", "ripple"];
 const poolNames = GROUND.concat(POOLS);
 const poolItems = [], poolFree = [], poolTop = new Int32Array(poolNames.length);
@@ -66,10 +56,10 @@ for (let p = 0; p < poolNames.length; p++) {
     poolTop[p] = size;
     instanceCount += size;
 }
-const ROW_POOL = GROUND.length; // POOLS index i is poolNames index ROW_POOL + i.
+const ROW_POOL = GROUND.length;
 const P = {};
 for (let p = 0; p < poolNames.length; p++) P[poolNames[p]] = p;
-const ENC = 4096; // Encoded handle: pool * ENC + index.
+const ENC = 4096;
 function takeItem(pool) {
     if (poolTop[pool] === 0) throw new Error("Pool exhausted: " + poolNames[pool]);
     return pool * ENC + poolFree[pool][--poolTop[pool]];
@@ -88,7 +78,6 @@ function single(name, unlit, target) {
     instanceCount++;
     return it;
 }
-// Per runner: chicken (player 2 is yellow), its blob shadows and its eagle.
 const chickens = [], eagles = [], shadowsGrass = [], shadowsRoad = [];
 for (const name of ["chicken", "chicken_p2"]) {
     shadowsGrass.push(single("shadow_grass", true, shadowBatch).setScale(.52, 1, .55));
@@ -96,8 +85,16 @@ for (const name of ["chicken", "chicken_p2"]) {
     chickens.push(single(name, false, dynamicBatch));
     eagles.push(single("eagle", false, dynamicBatch));
 }
+const owls = [single("owl", false, dynamicBatch), single("owl", false, dynamicBatch)];
+const owlSkin = new Uint8Array(2);
+function toggleOwl(i) {
+    const p = runners[i].player;
+    owlSkin[i] ^= 1;
+    burst(WHITE, 12, p.rx, p.ry + .6, p.rz, 2.2, 3.0, .6, .10, 5, 2);
+    burst(GOLD, 8, p.rx, p.ry + .8, p.rz, 1.6, 3.4, .5, .08, 7, 1);
+    play(audio, owlSkin[i] ? "coin" : "restart", p.rx - camX);
+}
 
-// --- Particles: one cube instance per particle slot, batch rebuilt on change --
 const particleBatch = new Render3D.Batch();
 const particles = createParticles(tuning.particles.counts);
 const particleItems = [];
@@ -122,7 +119,6 @@ function drawParticles() {
         particleItems[i].setPosition(particles.x[i], particles.y[i], particles.z[i]).setScale(k, k, k);
     }
 }
-// Bursts: (colour, count, spread, up speed, life, size, gravity, drag).
 function burst(color, count, x, y, z, spread, up, life, size, gravity, drag) {
     if (emit(particles, color, count, x, y, z, spread, up, life, size, gravity, drag) > 0) bursts++;
 }
@@ -142,9 +138,8 @@ function deathBurst(r) {
     }
 }
 
-// --- Game and row visuals ------------------------------------------------------
 const game = createGame(tuning);
-let rows = game.rows; // Swapped with the prepared buffer on each restart.
+let rows = game.rows;
 const player = game.player, runners = game.runners, n = rows.n, M = rows.M;
 const slotBatch = [];
 for (let s = 0; s < n; s++) slotBatch.push(new Render3D.Batch());
@@ -152,24 +147,15 @@ const STATIC_MAX = 40;
 const slotStatic = new Int32Array(n * STATIC_MAX), slotStaticCount = new Int16Array(n);
 const slotMover = new Int32Array(n * M), slotGround = new Int32Array(n).fill(-1);
 const builtMovers = new Uint8Array(n);
-// Kind each slot was last built as (-1 while released). With rebuilds spread
-// over frames, row data can be newer than a slot's visuals, so per-frame
-// visual code reads builtKind, never rows.kind.
 const builtKind = new Int8Array(n).fill(-1);
 const TRAIN_PARTS = tuning.rail.wagons + 1;
 const slotTrain = new Int32Array(n * TRAIN_PARTS), slotLight = new Int32Array(n).fill(-1);
-const moverY = new Float32Array(4); // CAR, TRUCK, LOG, LILY (logs and pads float at row y)
+const moverY = new Float32Array(4);
 moverY[0] = moverY[1] = g0.roadY;
 const slotCoin = new Int32Array(n).fill(-1), coinShown = new Uint8Array(n);
-const slotRipple = new Int32Array(n).fill(-1); // Water streaks, scrolled with the current.
-const REBUILD_BUDGET = 8; // Slots rebuilt per update; a new run needs 3 updates instead of one long one.
+const slotRipple = new Int32Array(n).fill(-1);
+const REBUILD_BUDGET = 8;
 
-// Moving instances (vehicles, logs, trains) are positioned with one
-// Model3D.setPositions call per frame, only on rows a view shows (visLo/visHi,
-// per view); rows out of view are not drawn either. The list is rebuilt when
-// rows or the visible range change (about once per hop), not every frame:
-// rebuilding costs ~2 ms. moving[] is a persistent array whose length is set,
-// not reallocated.
 const MOVING_MAX = n * (M + TRAIN_PARTS);
 const moving = [], movingRef = new Int32Array(MOVING_MAX), movingPos = new Float32Array(MOVING_MAX * 3);
 let movingCount = 0, movingDirty = true;
@@ -203,7 +189,6 @@ function addStatic(s, pool, x, y, z) {
 function buildSlot(s) {
     releaseSlot(s);
     const z = rows.z[s], kind = rows.kind[s], b = slotBatch[s];
-    // Two grass detail layouts, picked per row so tufts and flowers do not line up.
     const b2 = (Math.imul(z, 0x9E3779B1) >>> 0) & 0x10000;
     const ground = kind === GRASS ? (rows.alt[s] ? (b2 ? P.grass_alt_b : P.grass_alt) : (b2 ? P.grass_b : P.grass)) :
         kind === ROAD ? (rows.marked[s] ? P.road_marked : P.road) : kind === WATER ? P.water : P.rail;
@@ -290,7 +275,6 @@ function placeMovers() {
         }
     }
     if (movingCount > 0) Model3D.setPositions(moving, movingPos);
-    // Coins spin and bob; a taken coin is parked once.
     const cn = tuning.coin, angle = frame * cn.spin / 60, bob = Math.sin(frame * .08) * cn.bob;
     for (let s = 0; s < n; s++) {
         if (slotCoin[s] < 0 || !coinShown[s] || !shown(rows.z[s])) continue;
@@ -299,8 +283,6 @@ function placeMovers() {
         const base = builtKind[s] === ROAD ? g0.roadY : g0.grassY;
         it.setPosition(rows.coinX[s], base + cn.height + bob, rows.z[s]).setRotationEuler(0, angle, 0);
     }
-    // Water streaks drift with the current (or slowly on still rows) and wrap
-    // every 4 cells, the ripple model's period.
     const seconds = frame / 60;
     for (let s = 0; s < n; s++) {
         if (slotRipple[s] < 0 || !shown(rows.z[s])) continue;
@@ -311,10 +293,8 @@ function placeMovers() {
     }
     for (let s = 0; s < n; s++) {
         if (builtKind[s] !== RAIL) continue;
-        // Lights blink while warning and stay on while the train passes.
         const state = rows.trainState[s];
         const on = state !== TRAIN_IDLE && (state === TRAIN_PASS || (frame & 16) !== 0);
-        // Sounds: a bell on each blink while warning, the horn when the train enters.
         const near = falloff(audio, nearestRunner(rows.z[s]));
         if (on && !lightOn[s] && state === TRAIN_WARN && near > 0)
             play(audio, "bell", tuning.player.minX - 1 - camX, near);
@@ -327,7 +307,6 @@ function placeMovers() {
     }
 }
 
-// --- HUD (project font, digits/A-Z only) --------------------------------------
 const hud = tuning.hud;
 const scoreFont = new Font(hud.font, { size: hud.fontSize });
 const smallFont = new Font(hud.font, { size: hud.topSize });
@@ -344,7 +323,6 @@ coinFont.outline = 2;
 coinFont.outlineColor = Color.new(60, 30, 0);
 coinFont.preload("0123456789 NEWTOP", { budgetMs: 0 });
 let shownCoins = -1, coinText = "", coinX = 0;
-// Player 2's score, in its chicken's yellow.
 const p2Font = new Font(hud.font, { size: hud.fontSize });
 p2Font.color = Color.new(255, 214, 66);
 p2Font.outline = 2;
@@ -368,23 +346,15 @@ const wasHopping = new Uint8Array(2), lastBumps = new Int32Array(2), wasAlive = 
 const eagleGrab = new Uint8Array(2), wasMounted = new Uint8Array(2);
 let panelTime = 0;
 
-// Juice: the log/pad landed on dips (dipRef = its mover index), the camera
-// shakes on hits.
 const juice = tuning.juice, multi = tuning.multi;
 let dipRef = -1, dipTime = 0, dipNow = 0;
 const idleTime = new Float32Array(2);
 const lightOn = new Uint8Array(n), trainHeard = new Uint8Array(n);
 
-// --- Views: merge and split ----------------------------------------------------
-// Rows from a camera's target to the ground point a quarter of the screen
-// above (qUp) or below (qDown) the centre, i.e. the centres of the two halves.
 const tanHalf = Math.tan(c.fovYDegrees * rad / 2), ce = Math.cos(c.elevationDegrees * rad);
 const se = Math.sin(c.elevationDegrees * rad), ca = Math.cos(c.azimuthDegrees * rad);
 const qUp = .5 * tanHalf * c.distance / (ca * (se - .5 * tanHalf * ce));
 const qDown = .5 * tanHalf * c.distance / (ca * (se + .5 * tanHalf * ce));
-// Two players whose focus points are up to qUp + qDown rows apart fit one
-// view; beyond that each half follows its own player. At exactly that gap the
-// split cameras equal the merged one, so the split opens without a jump.
 const viewX = new Float32Array(2), viewZ = new Float32Array(2), wantX = new Float32Array(2),
     wantZ = new Float32Array(2);
 let split = false, splitFrames = 0, camX = 0;
@@ -393,7 +363,6 @@ const topScissor = { x0: fullScissor.x0, y0: fullScissor.y0, x1: fullScissor.x1,
 const bottomScissor = { x0: fullScissor.x0, y0: height >> 1, x1: fullScissor.x1, y1: fullScissor.y1 };
 function clampX(x) { return Math.max(-c.maxTargetX, Math.min(c.maxTargetX, x)) + c.targetOffset[0]; }
 
-// Runners the camera follows: the living ones; at game over, the last to die.
 function followed(r) {
     if (!r.joined) return false;
     if (game.state !== DEAD) return r.alive;
@@ -408,14 +377,11 @@ function nearestRunner(z) {
 function aimViews() {
     const a = runners[0], b = runners[1], fa = followed(a), fb = followed(b);
     if (fa !== fb || !fa) {
-        // One view, as in a solo game.
         const r = fa || !fb ? a : b, p = r.player;
         wantX[0] = wantX[1] = clampX(p.rx);
         wantZ[0] = wantZ[1] = Math.min(p.rz, r.scrollZ) + c.targetOffset[2];
         return;
     }
-    // The scroll line pulls each focus ahead of an idle player (the eagle's
-    // warning), but only so far: a half screen is short.
     const za = Math.max(Math.min(a.player.rz, a.scrollZ), a.player.rz - multi.maxDrift) + multi.focusOffset;
     const zb = Math.max(Math.min(b.player.rz, b.scrollZ), b.player.rz - multi.maxDrift) + multi.focusOffset;
     const lead = za <= zb ? a : b, trail = lead === a ? b : a;
@@ -425,8 +391,8 @@ function aimViews() {
         wantX[0] = wantX[1] = (xl + xt) / 2;
         wantZ[0] = wantZ[1] = zl + gap * qUp / D;
     } else {
-        wantX[0] = xl; wantZ[0] = zl + qUp; // Top half: the leader.
-        wantX[1] = xt; wantZ[1] = zt - qDown; // Bottom half.
+        wantX[0] = xl; wantZ[0] = zl + qUp;
+        wantX[1] = xt; wantZ[1] = zt - qDown;
     }
 }
 function snapCamera() {
@@ -459,7 +425,8 @@ function placeCamera() {
 
 function drawPlayer(r) {
     const t = tuning, i = r.index, player = r.player, kind = rowKind(rows, Math.round(player.rz));
-    const chicken = chickens[i], eagleItem = eagles[i];
+    const chicken = owlSkin[i] ? owls[i] : chickens[i], eagleItem = eagles[i];
+    (owlSkin[i] ? chickens[i] : owls[i]).setPosition(0, HIDDEN, 0);
     shadowsGrass[i].setPosition(0, HIDDEN, 0);
     shadowsRoad[i].setPosition(0, HIDDEN, 0);
     eagleItem.setPosition(0, HIDDEN, 0);
@@ -474,7 +441,6 @@ function drawPlayer(r) {
             chicken.setPosition(r.deathX, u >= 1 ? HIDDEN : g0.logTop - u * .9, r.deathZ)
                 .setScale(1, 1, 1);
         } else {
-            // Eagle: swoop from ahead onto the chicken, then carry it off behind.
             const e = t.eagle, swoop = Math.min(1, dt / e.swoopSeconds);
             const carryU = Math.max(0, Math.min(1, (dt - e.swoopSeconds) / e.carrySeconds));
             const ex = r.deathX, ez = r.deathZ - 9 * (1 - swoop) + 12 * carryU;
@@ -485,7 +451,6 @@ function drawPlayer(r) {
         }
         return;
     }
-    // Idle: the chicken breathes; on the title screen it also looks around.
     let scaleY = player.scaleY, yaw = player.yaw;
     if (!isBusy(player)) {
         const it = idleTime[i] += 1 / 60;
@@ -496,12 +461,11 @@ function drawPlayer(r) {
         .setScale(1, scaleY, 1).setRotationEuler(0, yaw, 0);
     const base = game.world.groundY(Math.round(player.rz));
     const lift = 1 - .35 * Math.min(1, Math.max(0, player.ry - base) / tuning.player.hopHeight);
-    if (r.mount >= 0) return; // Riding on the other chicken: its shadow covers both.
+    if (r.mount >= 0) return;
     const shadow = kind === GRASS ? shadowsGrass[i] : shadowsRoad[i];
     shadow.setPosition(player.rx + .12, base + .025, player.rz + .10).setScale(.52 * lift, 1, .55 * lift);
 }
 
-// --- Title screen and game-over panel ------------------------------------------
 const panelW = 260, panelH = 128, panelX = (mode.width - panelW) / 2, panelY = height * .30;
 const panelLabels = ["SCORE", "TOP"].map(t => [t, smallFont.getTextSize(t).width]);
 const newTopText = "NEW TOP", newTopX = panelX + (panelW - coinFont.getTextSize(newTopText).width) / 2;
@@ -517,7 +481,6 @@ function drawJoin() {
     else if (frame & 32) smallFont.print(joinX, height * .93, joinText);
 }
 function drawPanel() {
-    // Fades in; a dark translucent card with the run's score and the best.
     const u = Math.min(1, panelTime / juice.panelFade);
     const y = panelY + (1 - u) * 24;
     Draw.rect(panelX, y, panelW, panelH, Color.new(20, 24, 40, Math.round(80 * u)));
@@ -530,7 +493,6 @@ function drawPanel() {
     }
     smallFont.print(panelX + (panelW - panelLabels[0][1]) / 2, y + 14, panelLabels[0][0]);
     if (game.count > 1) {
-        // One score per player, each in its chicken's colour.
         scoreFont.print(panelX + panelW * .27 - pW[0] / 2, y + 34, pText[0]);
         p2Font.print(panelX + panelW * .73 - pW[1] / 2, y + 34, pText[1]);
     } else scoreFont.print(panelX + (panelW - panelTextW) / 2, y + 34, panelText);
@@ -539,20 +501,15 @@ function drawPanel() {
     } else smallFont.print(panelX + (panelW - topW) / 2, y + 92, topText);
 }
 
-// Rows a view can show: where the rays through the corners of its part of the
-// screen (NDC y from y0 to y1) meet the ground, widened for props that stand
-// up into view from the rows in front and for the depth of props behind.
-// Slot batches outside are not submitted at all, so a long row window costs
-// nothing where it is not seen.
 function visibleRows(i, y0, y1) {
     const ex = viewX[i] + camOffX, ey = c.targetOffset[1] + camOffY, ez = viewZ[i] + camOffZ;
     let fx = -camOffX, fy = -camOffY, fz = -camOffZ;
     const fl = Math.hypot(fx, fy, fz);
     fx /= fl; fy /= fl; fz /= fl;
-    let rx = -fz, rz = fx; // f x (0, 1, 0)
+    let rx = -fz, rz = fx;
     const rl = Math.hypot(rx, rz);
     rx /= rl; rz /= rl;
-    const ux = -rz * fy, uy = rz * fx - rx * fz, uz = rx * fy; // right x f
+    const ux = -rz * fy, uy = rz * fx - rx * fz, uz = rx * fy;
     const sy = tanHalf, sx = tanHalf * mode.width / height;
     let lo = 1e9, hi = -1e9;
     for (let k = 0; k < 4; k++) {
@@ -590,19 +547,16 @@ function addStats(st) {
     frameStats.culledObjects += st.culledObjects; frameStats.submittedObjects += st.submittedObjects;
 }
 
-// --- Instrumentation -------------------------------------------------------------
 const pad = Gamepad.player(0), pad2 = Gamepad.player(1);
 const stats = {}, shadowStats = {};
-// Per-frame totals over every batch and view.
 const frameStats = { triangles: 0, drawPasses: 0, culledObjects: 0, submittedObjects: 0 };
 const m = tuning.measurement;
 const cpu = new Float32Array(m.cpuFrames), cpuFrame = new Int32Array(m.cpuFrames);
-const events = new Int32Array(m.maxEvents * 4); // frame, kind (1 death, 2 restart), score, cause
+const events = new Int32Array(m.maxEvents * 4);
 let frame = 0, cpuCount = 0, cpuNext = 0, presses = 0, logged = 0, reports = 0, rebuilt = 0;
 let lastRestarts = 0, maxTriangles = 0, maxDrawn = 0, resetFrame = 0;
-// Max ms: [restart logic, restart release, restart build, row logic, row release, row build].
 const profile = new Float32Array(6);
-const frameWork = new Uint8Array(m.cpuFrames + 8); // slots rebuilt per update, by frame
+const frameWork = new Uint8Array(m.cpuFrames + 8);
 const reportFrames = [];
 const memoryLoaded = System.getMemoryStats();
 
@@ -616,8 +570,6 @@ function logEvent(kind) {
 }
 
 function rowSummary() {
-    // Kind letters and blocked-cell masks for the run's first rows, compared
-    // with the host generator for the same seed.
     let kinds = "";
     const masks = [];
     for (let z = rows.frontZ; z < rows.frontZ + n; z++) {
@@ -633,10 +585,9 @@ function writeReport() {
     const k = Math.min(cpuCount, cpu.length);
     const sorted = Array.from(cpu.subarray(0, k)).sort((a, b) => a - b);
     let sum = 0, gameMax = 0, slow = 0;
-    const slowList = []; // [frame, cpu ms, rows rebuilt in that frame's update]
+    const slowList = [];
     for (let i = 0; i < k; i++) {
         sum += sorted[i];
-        // Loop.getStats() reports a frame's CPU time two frames later.
         if (reportFrames.indexOf(cpuFrame[i] - 2) >= 0) continue;
         if (cpu[i] > 16.67) {
             slow++;
@@ -658,7 +609,7 @@ function writeReport() {
             scrollZ: runners[0].scrollZ
         },
         player: { x: player.x, z: player.z, bestZ: player.bestZ, hops: player.hops, bumps: player.bumps },
-        multi: { count: game.count, split, splitFrames, alive: runners.map(r => r.alive), scores: runners.map(r => r.score) },
+        multi: { count: game.count, split, splitFrames, owl: Array.from(owlSkin), alive: runners.map(r => r.alive), scores: runners.map(r => r.score) },
         rows: rowSummary(), generated: rows.generated, rebuilt, poolUsed: used,
         coins: game.coins, particlePeak, bursts, profile: Array.from(profile, v => Math.round(v * 100) / 100),
         events: eventList, instances: instanceCount, render, maxTriangles, maxDrawn,
@@ -682,14 +633,12 @@ findVisibleRows();
 
 Loop.run({
     update(dt) {
-        if (dt > .05) dt = .05; // Avoid teleport-like hops after a stall.
+        if (dt > .05) dt = .05;
         Gamepad.update();
         let dir = pad.justPressed(Gamepad.UP) ? UP : pad.justPressed(Gamepad.DOWN) ? DOWN :
             pad.justPressed(Gamepad.LEFT) ? LEFT : pad.justPressed(Gamepad.RIGHT) ? RIGHT : -1;
         let restart = pad.justPressed(Gamepad.CROSS) || pad.justPressed(Gamepad.START);
         if (dir >= 0) presses++;
-        // Player 2: joins with X/START on the title or game-over screen, leaves
-        // with O there; plays with its D-pad.
         let dir2 = pad2.justPressed(Gamepad.UP) ? UP : pad2.justPressed(Gamepad.DOWN) ? DOWN :
             pad2.justPressed(Gamepad.LEFT) ? LEFT : pad2.justPressed(Gamepad.RIGHT) ? RIGHT : -1;
         const between = game.state === TITLE || canRestart(game);
@@ -732,7 +681,7 @@ Loop.run({
                 eagleGrab[i] = 1;
                 burst(WHITE, 8, r.deathX, .6, r.deathZ, 2.0, 2.5, .8, .11, 4, 2.5);
             }
-            if (r.alive && r.mount >= 0 && !wasMounted[i]) play(audio, "bump", px); // Landed on a head.
+            if (r.alive && r.mount >= 0 && !wasMounted[i]) play(audio, "bump", px);
             wasMounted[i] = r.mount >= 0 ? 1 : 0;
             if (r.alive && p.landed) {
                 const kind = rowKind(rows, p.z);
@@ -754,14 +703,12 @@ Loop.run({
             dipNow = juice.logDip * Math.sin(Math.PI * (1 - dipTime / juice.dipSeconds));
         } else dipNow = 0;
         if (shakeTime > 0) shakeTime = Math.max(0, shakeTime - dt);
-        // Music on the title and game-over screens, ambience while playing.
         track(audio, game.state === TITLE || canRestart(game) ? "title" : "ambience");
         if (canRestart(game)) panelTime += dt; else panelTime = 0;
         updateParticles(particles, dt);
         let rebuiltNow = 0, dirty = 0;
         for (let s = 0; s < n; s++) dirty += rows.dirty[s];
         if (dirty > REBUILD_BUDGET) {
-            // A new run: hide every stale slot now, then build nearest rows first.
             for (let s = 0; s < n; s++) if (rows.dirty[s]) releaseSlot(s);
         }
         const t2 = System.getMilliseconds();
@@ -771,7 +718,6 @@ Loop.run({
         }
         const t3 = System.getMilliseconds();
         if (dirty > REBUILD_BUDGET || rebuiltNow > 0) {
-            // Worst update seen for: game logic (incl. row generation), slot release, slot builds.
             const k = dirty > REBUILD_BUDGET ? 0 : 3;
             if (t1 - t0 > profile[k]) profile[k] = t1 - t0;
             if (t2 - t1 > profile[k + 1]) profile[k + 1] = t2 - t1;
@@ -789,7 +735,6 @@ Loop.run({
         drawParticles();
 
         if (pad.justPressed(Gamepad.L1)) {
-            // Debug showcase: every burst type around the chicken, for screenshots.
             const x = player.rx, z = player.rz;
             burst(WHITE, 16, x - 1.3, .5, z, 2.6, 3.6, .9, .12, 5, 2.2);
             burst(RED, 3, x - 1.3, .7, z, 1.6, 3.0, .7, .10, 6, 1.5);
@@ -797,9 +742,10 @@ Loop.run({
             burst(GOLD, 10, x, .6, z - 1, 1.8, 3.2, .5, .09, 7, 1);
             burst(DUST, 4, x, .1, z + .15, 1.1, 1.1, .32, .08, 6, 3);
         }
+        if (pad.justPressed(Gamepad.SELECT)) toggleOwl(0);
+        if (pad2.justPressed(Gamepad.SELECT) && game.count > 1) toggleOwl(1);
         if (pad.justPressed(Gamepad.R2)) writeReport();
         if (pad.justPressed(Gamepad.L2)) {
-            // Debug: toggle a second player and start over, for tests.
             setPlayers(game, game.count === 1 ? 2 : 1);
             resetGame(game);
             rows = game.rows;
@@ -808,7 +754,6 @@ Loop.run({
             snapCamera();
         }
         if (pad.justPressed(Gamepad.L3)) {
-            // Debug reset: the input test uses it to discard any earlier input.
             resetGame(game);
             rows = game.rows;
             clearParticles(particles);
@@ -852,7 +797,6 @@ Loop.run({
         if (game.state === TITLE) drawTitle();
         else {
             if (game.count > 1) {
-                // Two players: scores in the top corners, coins between them.
                 coinFont.print((coinX + hud.x) / 2, hud.y, coinText);
                 scoreFont.print(hud.x, hud.y, pText[0]);
                 p2Font.print(p2X, hud.y, pText[1]);
@@ -866,10 +810,10 @@ Loop.run({
         if ((canRestart(game) || game.state === TITLE) && (frame & 32))
             smallFont.print(retryX, height * .86, retryText);
         frame++;
-        const time = Loop.getStats(); // Instrumentation allocates one small stats object.
+        const time = Loop.getStats();
         cpu[cpuNext] = time.cpuMs;
         cpuFrame[cpuNext] = frame;
         cpuNext = (cpuNext + 1) % cpu.length;
         cpuCount++;
     }
-}, { clearColor: 0x80dcc662 }); // GS packed RGBA: 98, 198, 220, 128.
+}, { clearColor: 0x80dcc662 });

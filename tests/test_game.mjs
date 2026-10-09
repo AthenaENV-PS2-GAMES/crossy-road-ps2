@@ -1,4 +1,3 @@
-// Host tests for the M4 game rules: node tests/test_game.mjs
 import assert from "node:assert/strict";
 import {tuning} from "../game/tuning.js";
 import {UP, DOWN, RIGHT, placeX} from "../game/player.js";
@@ -15,7 +14,6 @@ const step = (g, frames, dir = -1, restart = false) => {
 };
 const hop = (g, dir) => step(g, 12, dir);
 
-// Overwrite row z for a scenario (pool accounting is irrelevant here).
 function force(g, z, kind, vel = 0, movers = []) {
     const R = g.rows, s = slotOf(R, z);
     R.kind[s] = kind; R.tree[s] = R.rock[s] = R.tall[s] = 0;
@@ -49,8 +47,6 @@ test("title screen: X starts without hopping; new top is per run", () => {
     assert.equal(newTop(g), g.score > 0);
 });
 
-// Two players: move runner i's player to row z with its scroll line and best
-// row there, so only the distance to the other player can bring the eagle.
 function teleport(g, i, z) {
     const r = g.runners[i], p = r.player;
     p.z = p.bestZ = z;
@@ -99,11 +95,11 @@ test("two players: the run ends when both are dead; restart brings both back", (
     step(g, 1);
     assert.equal(g.state, PLAYING);
     step(g, 30);
-    assert.ok(g.runners[1].deadTime > .4); // The dead player waits; its clock runs.
+    assert.ok(g.runners[1].deadTime > .4);
     assert.equal(canRestart(g), false);
-    hop(g, UP); // The survivor still plays.
+    hop(g, UP);
     assert.equal(g.player.z, -1);
-    g.runners[0].scrollZ = -20; // Fall far behind the scroll line: eagle.
+    g.runners[0].scrollZ = -20;
     step(g, 1);
     assert.equal(g.state, DEAD);
     assert.equal(g.cause, EAGLE);
@@ -123,7 +119,7 @@ test("player 2 joining at game over plays from the next run", () => {
     assert.equal(g.state, DEAD);
     const z = g.player.z;
     setPlayers(g, 2);
-    assert.equal(g.player.z, z); // The fallen chicken stays where it fell.
+    assert.equal(g.player.z, z);
     assert.equal(g.runners[1].alive, false);
     step(g, 120);
     step(g, 1, -1, true);
@@ -131,8 +127,6 @@ test("player 2 joining at game over plays from the next run", () => {
     assert.equal(g.player.x, -tuning.multi.startGap);
 });
 
-// Two players on the start row, one cell apart (x = -1 and +1); a hop of
-// runner 0 to the right lands next to runner 1, a second one on its head.
 function pair() {
     const g = createGame(tuning);
     setPlayers(g, 2);
@@ -160,10 +154,10 @@ test("riding: the rider is carried without points, then hops off", () => {
     go(-1, UP);
     go(-1, UP);
     assert.equal(a.mount, 1);
-    assert.equal(a.player.z, -2); // Carried along.
+    assert.equal(a.player.z, -2);
     assert.equal(b.score, 2);
-    assert.equal(a.score, 0); // No points for the ride.
-    go(UP); // Hops off forward; its score is its own row again.
+    assert.equal(a.score, 0);
+    go(UP);
     assert.equal(a.mount, -1);
     assert.equal(a.player.z, -3);
     assert.equal(a.score, 3);
@@ -174,7 +168,7 @@ test("riding: a rider dies with the player it rides on", () => {
     const [g, go] = pair();
     const [a, b] = g.runners;
     go(RIGHT); go(RIGHT);
-    b.scrollZ = -20; // The bottom player falls far behind: the eagle takes it.
+    b.scrollZ = -20;
     step(g, 1);
     assert.equal(b.alive, false);
     assert.equal(a.alive, false);
@@ -186,7 +180,6 @@ test("riding: the bottom player cannot be stacked on by a hop into a tree", () =
     const [g, go] = pair();
     const [a] = g.runners;
     go(RIGHT); go(RIGHT);
-    // The start row's wall behind (z = 1) is all trees: a hop down bumps, the rider stays on top.
     go(DOWN);
     assert.equal(a.mount, 1);
 });
@@ -324,7 +317,7 @@ test("lily pad: safe landing, no drift; next to it is open water", () => {
     step(g, 120);
     assert.deepEqual([g.state, g.player.x, g.player.z], [PLAYING, 0, -1]);
     assert.equal(g.player.ry, tuning.ground.lilyTop);
-    hop(g, 3); // RIGHT: no pad there
+    hop(g, 3);
     assert.deepEqual([g.state, g.cause], [DEAD, DROWNED]);
 });
 
@@ -350,7 +343,6 @@ test("next run is prepared during the death screen and swapped in on restart", (
     step(g, 1, -1, true);
     assert.equal(g.rows, prepared);
     assert.equal(g.nextRows, first);
-    // The swapped-in window equals a direct generation of run 1.
     const kinds = R => { let k = ""; for (let z = 0; z > -16; z--) k += rowKind(R, z); return k; };
     const R1 = createGame(tuning).rows;
     resetRows(R1, runSeed(tuning, 1));

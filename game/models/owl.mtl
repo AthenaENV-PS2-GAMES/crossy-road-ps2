@@ -1,0 +1,23 @@
+newmtl owl_body
+Kd 0.78 0.66 0.96
+
+newmtl owl_face
+Kd 0.95 0.93 1
+
+newmtl owl_mid
+Kd 0.58 0.36 0.9
+
+newmtl owl_dark
+Kd 0.3 0.15 0.62
+
+newmtl owl_eye
+Kd 1 0.74 0.1
+
+newmtl owl_pupil
+Kd 0.08 0.06 0.1
+
+newmtl owl_beak
+Kd 0.2 0.19 0.24
+
+newmtl owl_foot
+Kd 0.14 0.13 0.16

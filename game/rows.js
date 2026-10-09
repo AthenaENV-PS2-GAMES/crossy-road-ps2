@@ -1,17 +1,13 @@
-// Procedural rows in a recycled window of slots. Pure: no engine globals and
-// no allocation after createRows(). Row z lives in slot ((z % n) + n) % n.
-// Forward is -Z; rows are generated in decreasing z as the player advances.
 export const GRASS = 0, ROAD = 1, WATER = 2, RAIL = 3;
 export const CAR = 0, TRUCK = 1, LOG = 2, LILY = 3;
 export const TRAIN_IDLE = 0, TRAIN_WARN = 1, TRAIN_PASS = 2;
 export const MAX_MOVERS = 6;
-// Pools whose instances rows consume; main.js creates them with these names.
 export const POOLS = ["tree", "tree_tall", "rock", "car_purple", "car_cyan", "car_orange",
     "truck", "log2", "log3", "log4", "train_loco", "train_wagon", "signal", "signal_light",
     "lily", "coin"];
 const P_TREE = 0, P_TALL = 1, P_ROCK = 2, P_CAR = 3, P_TRUCK = 6, P_LOG = 7, P_LOCO = 10,
     P_WAGON = 11, P_SIGNAL = 12, P_LIGHT = 13, P_LILY = 14, P_COIN = 15;
-const BIT0 = 12; // Bit index of column x is x + BIT0; columns -12..12 fit in 25 bits.
+const BIT0 = 12;
 
 export function createRows(t) {
     const n = t.rows.slots, M = MAX_MOVERS, P = POOLS.length;
@@ -41,9 +37,6 @@ export function resetRows(R, seed) {
     stepRows(R, R.n);
 }
 
-// Staged reset: beginRows() then stepRows() over several frames builds the
-// same window as resetRows() (generation order is identical), so a new run
-// can be prepared while the death screen is shown.
 export function beginRows(R, seed) {
     R.rng = (seed >>> 0) || 1;
     R.segKind = GRASS;
@@ -56,14 +49,12 @@ export function beginRows(R, seed) {
     R.frontZ = start + behind + 1;
 }
 
-// Generates up to `count` rows of a staged reset; returns true when complete.
 export function stepRows(R, count) {
     const last = R.t.player.start[1] - R.t.rows.ahead;
     for (let k = 0; k < count && R.frontZ > last; k++) generateRow(R, --R.frontZ);
     return R.frontZ <= last;
 }
 
-// Generate rows until the window reaches `ahead` rows in front of bestZ.
 export function advanceRows(R, bestZ) {
     let made = 0;
     while (R.frontZ > bestZ - R.t.rows.ahead) {
@@ -79,7 +70,6 @@ export function difficulty(R, z) {
 }
 
 function rnd(R) {
-    // xorshift32: deterministic for a seed and a generation order.
     let x = R.rng;
     x ^= x << 13; x >>>= 0;
     x ^= x >>> 17;
@@ -147,7 +137,7 @@ function generateRow(R, z) {
     const start = t.player.start[1], d = difficulty(R, z);
     let kind;
     if (z > start - 1 - t.rows.startSafe) {
-        kind = GRASS; // Start area and the wall behind it.
+        kind = GRASS;
     } else {
         if (R.segLeft <= 0) {
             R.segKind = pickKind(R, d, R.segKind);
@@ -158,7 +148,7 @@ function generateRow(R, z) {
         kind = R.segKind;
         if (kind === RAIL && !(R.usage[P_LOCO] < R.capacity[P_LOCO] &&
             R.usage[P_WAGON] + t.rail.wagons <= R.capacity[P_WAGON] &&
-            R.usage[P_SIGNAL] < R.capacity[P_SIGNAL])) kind = GRASS; // Pools full: degrade.
+            R.usage[P_SIGNAL] < R.capacity[P_SIGNAL])) kind = GRASS;
     }
     R.kind[s] = kind;
     if (kind === GRASS) buildGrass(R, s, z, d);
@@ -168,7 +158,6 @@ function generateRow(R, z) {
     if ((kind === GRASS || kind === ROAD) && z < start - t.rows.startSafe) placeCoin(R, s);
 }
 
-// At most one coin per grass/road row, on a free playable cell.
 function placeCoin(R, s) {
     const p = R.t.player;
     if (rnd(R) >= R.t.rows.coinChance) return;
@@ -195,7 +184,6 @@ function setObstacle(R, s, x, tall, rock) {
 function buildGrass(R, s, z, d) {
     const t = R.t, p = t.player, rows = t.rows, start = p.start[1];
     const wall = z > start;
-    // Playable cells first, so a full pool never removes a planned free path.
     if (wall) {
         for (let x = p.minX; x <= p.maxX; x++) setObstacle(R, s, x, rnd(R) < rows.tallChance, false);
     } else if (z < start - rows.startSafe) {
@@ -203,7 +191,7 @@ function buildGrass(R, s, z, d) {
         const lo = Math.min(R.pathX, next), hi = Math.max(R.pathX, next);
         const chance = rows.playableTree[0] + (rows.playableTree[1] - rows.playableTree[0]) * d;
         for (let x = p.minX; x <= p.maxX; x++) {
-            if (x >= lo && x <= hi) continue; // Guaranteed connected path.
+            if (x >= lo && x <= hi) continue;
             if (rnd(R) < chance) {
                 const rock = rnd(R) < rows.rockChance;
                 if (!setObstacle(R, s, x, !rock && rnd(R) < rows.tallChance, rock)) break;
@@ -237,7 +225,6 @@ function buildRoad(R, s, z, d) {
         addMover(R, s, truck ? TRUCK : CAR, pool, x, half);
     }
     const ahead = slotOf(R, z + 1);
-    // Dashes sit on the -Z edge of a road row when the row in front is road too.
     if (R.kind[ahead] === ROAD && R.z[ahead] === z + 1) {
         R.marked[ahead] = 1;
         R.dirty[ahead] = 1;
@@ -247,7 +234,6 @@ function buildRoad(R, s, z, d) {
 function buildWater(R, s, z, d) {
     const t = R.t, rv = t.river, W = t.traffic.wrapHalfWidth * 2;
     if (rnd(R) < rv.lilyChance) {
-        // Still water with lily pads; one always sits on the guaranteed path column.
         R.lily[s] = 1;
         addMover(R, s, LILY, P_LILY, R.pathX, .5);
         const pads = intRange(R, rv.lilyPads[0], rv.lilyPads[1]);
@@ -285,8 +271,6 @@ function buildRail(R, s, z) {
     R.trainX[s] = 0;
 }
 
-// Train timing uses a per-row hash, not the generation stream, so frame
-// timing never changes which rows are generated.
 function trainIdle(R, z, pass) {
     const idle = R.t.rail.idle;
     return idle[0] + (idle[1] - idle[0]) * hash(z, pass);
@@ -318,7 +302,7 @@ export function updateRows(R, dt) {
                 R.trainTimer[s] -= dt;
                 if (R.trainTimer[s] <= 0) {
                     R.trainState[s] = TRAIN_PASS;
-                    R.trainX[s] = -dir * (wrap + length); // Front of the train.
+                    R.trainX[s] = -dir * (wrap + length);
                 } else if (R.trainTimer[s] <= rail.warning) {
                     R.trainState[s] = TRAIN_WARN;
                 }
@@ -326,8 +310,6 @@ export function updateRows(R, dt) {
         }
     }
 }
-
-// --- Queries used by player.js and game.js ---------------------------------
 
 export function rowKind(R, z) {
     const s = slotOf(R, z);
@@ -349,7 +331,6 @@ export function groundY(R, z) {
     return kind === ROAD ? g.roadY : kind === RAIL ? g.railY : g.grassY;
 }
 
-// Collects the coin at cell (x, z); returns true once per coin.
 export function takeCoin(R, x, z) {
     const s = slotOf(R, z);
     if (R.z[s] !== z || !R.hasCoin[s] || R.coinX[s] !== Math.round(x)) return false;
@@ -357,7 +338,6 @@ export function takeCoin(R, x, z) {
     return true;
 }
 
-// Mover index (slot * M + i) of the log or lily pad under x on row z, or -1.
 export function logAt(R, z, x) {
     const s = slotOf(R, z);
     if (R.z[s] !== z || R.kind[s] !== WATER) return -1;
@@ -367,7 +347,6 @@ export function logAt(R, z, x) {
     return -1;
 }
 
-// 1 = vehicle, 2 = train, 0 = nothing at the player's box (px, pz).
 export function hazardAt(R, px, pz) {
     const tr = R.t.traffic, hw = tr.playerHalfWidth;
     const lo = Math.floor(pz), hi = Math.ceil(pz);
@@ -381,7 +360,6 @@ export function hazardAt(R, px, pz) {
             }
         } else if (R.kind[s] === RAIL && R.trainState[s] === TRAIN_PASS &&
                    dz < R.t.rail.halfDepth + tr.playerHalfDepth) {
-            // trainX is the front; the train extends `length` behind it.
             const front = R.trainX[s], back = front - R.trainDir[s] * trainLength(R);
             if (px + hw > Math.min(front, back) && px - hw < Math.max(front, back)) return 2;
         }

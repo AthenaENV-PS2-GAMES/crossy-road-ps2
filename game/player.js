@@ -1,15 +1,10 @@
-// Grid hop logic. Pure: no engine globals, no allocations after creation.
-// Forward (UP) is -Z. x is fractional only while riding a log; hops onto
-// solid rows snap it back to the integer grid.
-// world: {isBlocked(x, z), groundY(z), isWater(z), lift?(p, x, z)}; lift is the
-// height of another player standing on (x, z), whose head p would land on.
 export const UP = 0, DOWN = 1, LEFT = 2, RIGHT = 3;
 const DX = [0, 0, -1, 1], DZ = [-1, 1, 0, 0];
 const IDLE = 0, HOP = 1, BUMP = 2;
 
 export function createPlayer(t, world) {
     const p = {
-        t, world, startX: t.start[0], // startX: set per player in two-player games.
+        t, world, startX: t.start[0],
         x: 0, z: 0, fromX: 0, fromZ: 0, toX: 0, toZ: 0,
         mode: IDLE, elapsed: 0, dir: UP, queued: -1,
         hops: 0, bumps: 0, bestZ: 0, landed: false,
@@ -34,7 +29,6 @@ export function resetPlayer(p) {
 export function isBusy(p) { return p.mode !== IDLE; }
 export function isHopping(p) { return p.mode === HOP; }
 
-// One buffered input: a press during a hop replaces any earlier queued one.
 export function requestMove(p, dir) {
     if (p.mode !== IDLE) p.queued = dir;
     else start(p, dir, 0);
@@ -42,13 +36,11 @@ export function requestMove(p, dir) {
 
 export function clearQueue(p) { p.queued = -1; }
 
-// Moves the player sideways with a log while standing on it.
 export function carry(p, dx) {
     p.x += dx;
     if (p.mode !== HOP) pose(p);
 }
 
-// Places the player at x on its row (used to snap onto a log slot).
 export function placeX(p, x) {
     p.x = x;
     pose(p);
@@ -75,7 +67,6 @@ function start(p, dir, carry) {
     }
 }
 
-// Advances the hop; p.landed is true on the update where a hop finished.
 export function update(p, dt) {
     p.landed = false;
     if (p.mode !== IDLE) {
@@ -92,8 +83,6 @@ export function update(p, dt) {
             }
             p.mode = IDLE;
             p.elapsed = 0;
-            // A landing hands control to game.js first (logs, water), which
-            // may clear the queue; the queued hop starts on the next update.
             if (p.queued >= 0 && !p.landed) {
                 const dir = p.queued;
                 p.queued = -1;

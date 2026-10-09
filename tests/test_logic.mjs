@@ -1,4 +1,3 @@
-// Host tests for player.js against a small fake world: node tests/test_logic.mjs
 import assert from "node:assert/strict";
 import {tuning} from "../game/tuning.js";
 import {createPlayer, requestMove, resetPlayer, update, isBusy, carry, UP, DOWN, LEFT, RIGHT}
@@ -61,13 +60,13 @@ test("buffered press runs right after landing (one update later)", () => {
 
 test("x stays fractional towards water and snaps towards land", () => {
     const p = fresh();
-    requestMove(p, UP); run(p, 20);         // z = -1
-    carry(p, .4);                            // as if on a log
-    requestMove(p, UP); run(p, 20);         // into water row -2: keeps x
+    requestMove(p, UP); run(p, 20);
+    carry(p, .4);
+    requestMove(p, UP); run(p, 20);
     assert.ok(Math.abs(p.x - .4) < 1e-6);
-    requestMove(p, RIGHT); run(p, 20);      // sideways along the water row
+    requestMove(p, RIGHT); run(p, 20);
     assert.ok(Math.abs(p.x - 1.4) < 1e-6);
-    requestMove(p, UP); run(p, 20);         // onto land: rounded
+    requestMove(p, UP); run(p, 20);
     assert.deepEqual([p.x, p.z], [1, -3]);
 });
 

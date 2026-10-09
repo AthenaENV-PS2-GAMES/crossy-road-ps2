@@ -1,7 +1,3 @@
-// Voxel particles: a fixed set of slots partitioned by colour, simulated in
-// typed arrays. Pure: no engine globals, no allocation after creation.
-// main.js gives every slot one cube instance of its colour and rebuilds its
-// particle batch only when `changed` is set (a burst started or ended).
 export const WHITE = 0, SPLASH = 1, GOLD = 2, DUST = 3, RED = 4;
 export const COLORS = ["particle_white", "particle_splash", "particle_gold", "particle_dust", "particle_red"];
 
@@ -27,8 +23,6 @@ function rnd(P) {
     return x / 4294967296;
 }
 
-// Emits up to `count` particles of `color` from (x, y, z). speed: horizontal
-// and upward velocity scales; life in seconds.
 export function emit(P, color, count, x, y, z, spread, up, life, size, gravity, drag) {
     let made = 0;
     for (let i = P.first[color]; i < P.first[color + 1] && made < count; i++) {
@@ -69,7 +63,6 @@ export function updateParticles(P, dt) {
     }
 }
 
-// Current edge length: full size, shrinking over the last 40% of life.
 export function particleScale(P, i) {
     const u = P.life[i] / P.maxLife[i];
     return P.size[i] * (u > .4 ? 1 : u / .4);

@@ -1,6 +1,3 @@
-// Host tests for procedural rows: node tests/test_rows.mjs
-// With --summary SEED prints the window summary main.js reports after a reset,
-// so verify_pcsx2.py can compare the PS2 generator with this one.
 import assert from "node:assert/strict";
 import {tuning} from "../game/tuning.js";
 import {createRows, resetRows, advanceRows, updateRows, slotOf, rowKind, isBlocked, logAt,
@@ -41,7 +38,7 @@ test("same seed gives the same rows; another seed differs", () => {
     const R = fresh(5);
     advanceRows(R, -40);
     const S = fresh(5);
-    for (let z = -1; z >= -40; z--) advanceRows(S, z); // Different advance steps, same rows.
+    for (let z = -1; z >= -40; z--) advanceRows(S, z);
     assert.equal(snapshot(R), snapshot(S));
 });
 
@@ -67,14 +64,11 @@ test("a free path always crosses every grass row (5 seeds x 1500 rows)", () => {
     const p = tuning.player;
     for (let seed = 1; seed <= 5; seed++) {
         const R = fresh(seed);
-        // Reachable columns, propagated row by row; non-grass rows keep reachability
-        // (roads/rails are open, logs move).
         let reach = new Set([0]);
         for (let z = -1; z >= -1500; z--) {
             advanceRows(R, z + tuning.rows.ahead - 1);
             const sz = slotOf(R, z);
             if (rowKind(R, z) === WATER && R.lily[sz]) {
-                // Still water: only pads are standable; hops along adjacent pads are allowed.
                 const pads = new Set();
                 for (let i = sz * R.M; i < sz * R.M + R.count[sz]; i++) pads.add(R.mx[i]);
                 const next = new Set([...reach].filter(x => pads.has(x)));
