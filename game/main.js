@@ -6,7 +6,6 @@ import {
     createGame, updateGame, resetGame, canRestart, runSeed, showTitle, newTop, setPlayers, DEAD, TITLE,
     CAR_HIT, TRAIN_HIT, DROWNED, SWEPT, EAGLE
 } from "./game.js";
-import { createBot, botMove } from "./bot.js";
 import {
     createParticles, emit, updateParticles, particleScale, clearParticles, COLORS,
     WHITE, SPLASH, GOLD, DUST, RED
@@ -358,12 +357,11 @@ titleFont.outline = 3;
 titleFont.outlineColor = Color.new(20, 20, 30);
 titleFont.preload(hud.title.join(""), { budgetMs: 0 });
 const titleX = hud.title.map(line => (mode.width - titleFont.getTextSize(line).width) / 2);
-const retryText = "PRESS X", autoText = "AUTO", testText = "TEST";
+const retryText = "PRESS X";
 const joinText = "P2 PRESS X", joinedText = "2 PLAYERS";
 const joinX = (mode.width - smallFont.getTextSize(joinText).width) / 2;
 const joinedX = (mode.width - smallFont.getTextSize(joinedText).width) / 2;
 const retryX = (mode.width - smallFont.getTextSize(retryText).width) / 2;
-const autoX = mode.width - 18 - smallFont.getTextSize(autoText).width;
 
 const audio = createAudio(tuning);
 const wasHopping = new Uint8Array(2), lastBumps = new Int32Array(2), wasAlive = new Uint8Array(2);
@@ -594,11 +592,6 @@ function addStats(st) {
 
 // --- Instrumentation -------------------------------------------------------------
 const pad = Gamepad.player(0), pad2 = Gamepad.player(1);
-const bots = [createBot(tuning), createBot(tuning)];
-let autopilot = false;
-// Test lock (R3): ignores D-pad and X/START from the pad so a scripted run
-// cannot be disturbed by someone playing; the autopilot still drives.
-let inputLocked = false;
 const stats = {}, shadowStats = {};
 // Per-frame totals over every batch and view.
 const frameStats = { triangles: 0, drawPasses: 0, culledObjects: 0, submittedObjects: 0 };
@@ -606,7 +599,7 @@ const m = tuning.measurement;
 const cpu = new Float32Array(m.cpuFrames), cpuFrame = new Int32Array(m.cpuFrames);
 const events = new Int32Array(m.maxEvents * 4); // frame, kind (1 death, 2 restart), score, cause
 let frame = 0, cpuCount = 0, cpuNext = 0, presses = 0, logged = 0, reports = 0, rebuilt = 0;
-let lastRestarts = 0, maxTriangles = 0, maxDrawn = 0, ignoredPresses = 0, resetFrame = 0;
+let lastRestarts = 0, maxTriangles = 0, maxDrawn = 0, resetFrame = 0;
 // Max ms: [restart logic, restart release, restart build, row logic, row release, row build].
 const profile = new Float32Array(6);
 const frameWork = new Uint8Array(m.cpuFrames + 8); // slots rebuilt per update, by frame
@@ -658,7 +651,7 @@ function writeReport() {
     const used = {};
     for (let p = 0; p < poolNames.length; p++) used[poolNames[p]] = tuning.pools[poolNames[p]] - poolTop[p];
     const report = {
-        milestone: 4, report: ++reports, frame, presses, autopilot,
+        milestone: 4, report: ++reports, frame, presses,
         game: {
             state: game.state, cause: game.cause, run: game.run, seed: runSeed(tuning, game.run),
             score: game.score, top: game.top, deaths: game.deaths, restarts: game.restarts,
@@ -672,7 +665,7 @@ function writeReport() {
         memoryBefore, memoryLoaded, memoryAfter: System.getMemoryStats(),
         vramUsedBytes: Screen.getMemoryStats(Screen.VRAM_USED_TOTAL), vramFreeBytes: Screen.getFreeVRAM(),
         cpuFrames: k, meanCpuMs: sum / k, p95CpuMs: sorted[Math.ceil(k * .95) - 1], maxCpuMs: sorted[k - 1],
-        maxCpuMsExcludingReports: gameMax, slowFrames: slow, slowList, inputLocked, ignoredPresses, resetFrame,
+        maxCpuMsExcludingReports: gameMax, slowFrames: slow, slowList, resetFrame,
         loop: Loop.getStats(), budgets: tuning.budgets
     };
     const file = std.open("metrics.json", "w");
@@ -695,12 +688,6 @@ Loop.run({
             pad.justPressed(Gamepad.LEFT) ? LEFT : pad.justPressed(Gamepad.RIGHT) ? RIGHT : -1;
         let restart = pad.justPressed(Gamepad.CROSS) || pad.justPressed(Gamepad.START);
         if (dir >= 0) presses++;
-        if (pad.justPressed(Gamepad.R3)) inputLocked = !inputLocked;
-        if (inputLocked) {
-            if (dir >= 0) ignoredPresses++;
-            dir = -1;
-            restart = false;
-        }
         // Player 2: joins with X/START on the title or game-over screen, leaves
         // with O there; plays with its D-pad.
         let dir2 = pad2.justPressed(Gamepad.UP) ? UP : pad2.justPressed(Gamepad.DOWN) ? DOWN :
@@ -708,20 +695,10 @@ Loop.run({
         const between = game.state === TITLE || canRestart(game);
         if (pad2.justPressed(Gamepad.CROSS) || pad2.justPressed(Gamepad.START)) {
             if (game.count === 1 && between) { setPlayers(game, 2); play(audio, "coin", 4); snapCamera(); }
-            else if (game.count > 1) restart = restart || !inputLocked;
+            else if (game.count > 1) restart = true;
         }
         if (pad2.justPressed(Gamepad.CIRCLE) && game.count > 1 && between) { setPlayers(game, 1); snapCamera(); }
-        if (game.count === 1 || inputLocked) dir2 = -1;
-        if (pad.justPressed(Gamepad.R1)) autopilot = !autopilot;
-        if (autopilot) {
-            if (game.state === TITLE) restart = true;
-            else if (game.state === DEAD) restart = canRestart(game);
-            else {
-                if (dir < 0 && runners[0].alive && !isBusy(player)) dir = botMove(bots[0], game);
-                const p2 = runners[1].player;
-                if (game.count > 1 && dir2 < 0 && runners[1].alive && !isBusy(p2)) dir2 = botMove(bots[1], game, p2);
-            }
-        }
+        if (game.count === 1) dir2 = -1;
         const wasDead = game.state === DEAD, wasTitle = game.state === TITLE;
         const t0 = System.getMilliseconds();
         updateGame(game, dt, dir, restart, dir2);
@@ -820,9 +797,9 @@ Loop.run({
             burst(GOLD, 10, x, .6, z - 1, 1.8, 3.2, .5, .09, 7, 1);
             burst(DUST, 4, x, .1, z + .15, 1.1, 1.1, .32, .08, 6, 3);
         }
-        if (pad.justPressed(Gamepad.SELECT)) writeReport();
+        if (pad.justPressed(Gamepad.R2)) writeReport();
         if (pad.justPressed(Gamepad.L2)) {
-            // Debug: toggle a second (autopilot) player and start over, for tests.
+            // Debug: toggle a second player and start over, for tests.
             setPlayers(game, game.count === 1 ? 2 : 1);
             resetGame(game);
             rows = game.rows;
@@ -835,7 +812,7 @@ Loop.run({
             resetGame(game);
             rows = game.rows;
             clearParticles(particles);
-            presses = logged = lastRestarts = ignoredPresses = 0;
+            presses = logged = lastRestarts = 0;
             resetFrame = frame;
             for (let s = 0; s < n; s++) if (rows.dirty[s]) buildSlot(s);
             snapCamera();
@@ -886,10 +863,7 @@ Loop.run({
             smallFont.print(hud.x, hud.y + hud.fontSize + 4, topText);
             if (panelTime > 0) { drawPanel(); if (canRestart(game)) drawJoin(); }
         }
-        const flagY = hud.y + (game.count > 1 ? hud.fontSize : hud.coinSize) + 8;
-        if (autopilot) smallFont.print(autoX, flagY, autoText);
-        if (inputLocked) smallFont.print(autoX, flagY + hud.topSize + 6, testText);
-        if ((canRestart(game) || game.state === TITLE) && !autopilot && (frame & 32))
+        if ((canRestart(game) || game.state === TITLE) && (frame & 32))
             smallFont.print(retryX, height * .86, retryText);
         frame++;
         const time = Loop.getStats(); // Instrumentation allocates one small stats object.

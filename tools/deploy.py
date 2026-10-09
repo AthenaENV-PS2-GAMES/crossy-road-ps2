@@ -12,7 +12,7 @@ if not args.elf.is_file():
     parser.error("3D runtime ELF is missing")
 for destination in args.destinations:
     destination.mkdir(parents=True, exist_ok=True)
-    for name in ("main.js", "tuning.js", "rows.js", "player.js", "game.js", "bot.js", "particles.js", "audio.js", "athena.ini"):
+    for name in ("main.js", "tuning.js", "rows.js", "player.js", "game.js", "particles.js", "audio.js", "athena.ini"):
         shutil.copy2(source / name, destination / name)
     shutil.copytree(source / "models", destination / "models", dirs_exist_ok=True)
     shutil.copytree(source / "fonts", destination / "fonts", dirs_exist_ok=True)
