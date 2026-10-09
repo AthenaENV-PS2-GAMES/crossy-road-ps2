@@ -52,7 +52,7 @@ def report():
     raise RuntimeError("R2 did not produce a new metrics.json (script error or pool exhausted?)")
 
 tuning_seed = json.loads(run("node", "--input-type=module", "-e",
-    "import {tuning} from '" + str(root / "game" / "tuning.js") + "'; console.log(JSON.stringify(tuning))"))
+    "import '" + str(root / "tests/native_random.mjs") + "'; import {tuning} from '" + str(root / "game" / "tuning.js") + "'; console.log(JSON.stringify(tuning))"))
 expected_rows = json.loads(run("node", str(root / "tests" / "test_rows.mjs"), "--summary", str(tuning_seed["seed"])))
 eagle = tuning_seed["eagle"]
 eagle_seconds = eagle["margin"] / eagle["scrollSpeed"][0]
@@ -60,7 +60,7 @@ eagle_seconds = eagle["margin"] / eagle["scrollSpeed"][0]
 if metrics.exists():
     metrics.unlink()
 before = windows()
-command = ["flatpak", "run", "--socket=x11", "--nosocket=wayland", "--env=QT_QPA_PLATFORM=xcb",
+command = ["flatpak", "run", "--filesystem=" + str(stage), "--socket=x11", "--nosocket=wayland", "--env=QT_QPA_PLATFORM=xcb",
            "net.pcsx2.PCSX2", "-batch", "-elf", str(stage / "athena.elf"),
            "-logfile", str(stage / "pcsx2.log")]
 log = (output / "m4_console.log").open("w")
@@ -120,7 +120,8 @@ finally:
             process.terminate()
             process.wait(timeout=5)
     log.close()
-    shutil.copy2(stage / "pcsx2.log", output / "m4_pcsx2.log")
+    if (stage / "pcsx2.log").exists():
+        shutil.copy2(stage / "pcsx2.log", output / "m4_pcsx2.log")
     (output / "m4_reports.json").write_text(json.dumps(reports, indent=1))
 
 last = soak_reports[-1]

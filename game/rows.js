@@ -23,7 +23,7 @@ export function createRows(t) {
         trainState: new Uint8Array(n), trainTimer: new Float32Array(n), trainX: new Float32Array(n),
         trainDir: new Int8Array(n), trainPasses: new Int32Array(n),
         slotUse: new Int16Array(n * P), usage: new Int32Array(P), capacity: new Int32Array(P),
-        frontZ: 0, rng: 1, segKind: GRASS, segLeft: 0, pathX: 0, generated: 0,
+        frontZ: 0, rng: new Random.Generator(t.seed), segKind: GRASS, segLeft: 0, pathX: 0, generated: 0,
     };
     for (let i = 0; i < P; i++) R.capacity[i] = t.pools[POOLS[i]];
     resetRows(R, t.seed);
@@ -38,7 +38,7 @@ export function resetRows(R, seed) {
 }
 
 export function beginRows(R, seed) {
-    R.rng = (seed >>> 0) || 1;
+    R.rng.seed(seed >>> 0);
     R.segKind = GRASS;
     R.segLeft = 0;
     R.pathX = R.t.player.start[0];
@@ -69,16 +69,9 @@ export function difficulty(R, z) {
     return d < 0 ? 0 : d > 1 ? 1 : d;
 }
 
-function rnd(R) {
-    let x = R.rng;
-    x ^= x << 13; x >>>= 0;
-    x ^= x >>> 17;
-    x ^= x << 5; x >>>= 0;
-    R.rng = x;
-    return x / 4294967296;
-}
-function range(R, a) { return a[0] + (a[1] - a[0]) * rnd(R); }
-function intRange(R, a, b) { return a + Math.floor(rnd(R) * (b - a + 1)); }
+function rnd(R) { return R.rng.float(); }
+function range(R, a) { return R.rng.float(a[0], a[1]); }
+function intRange(R, a, b) { return R.rng.int(a, b); }
 function hash(a, b) {
     let h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x7f4a7c15, 0xc2b2ae35);
     h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12;
@@ -359,7 +352,7 @@ export function hazardAt(R, px, pz) {
                 if (Math.abs(px - R.mx[i]) < R.mHalf[i] + hw) return 1;
             }
         } else if (R.kind[s] === RAIL && R.trainState[s] === TRAIN_PASS &&
-                   dz < R.t.rail.halfDepth + tr.playerHalfDepth) {
+            dz < R.t.rail.halfDepth + tr.playerHalfDepth) {
             const front = R.trainX[s], back = front - R.trainDir[s] * trainLength(R);
             if (px + hw > Math.min(front, back) && px - hw < Math.max(front, back)) return 2;
         }

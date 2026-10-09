@@ -7,9 +7,10 @@ import {
     CAR_HIT, TRAIN_HIT, DROWNED, SWEPT, EAGLE
 } from "./game.js";
 import {
-    createParticles, emit, updateParticles, particleScale, clearParticles, COLORS,
+    createParticles, emit, updateParticles, drawParticles, clearParticles,
     WHITE, SPLASH, GOLD, DUST, RED
 } from "./particles.js";
+import { createSave, updateSave } from "./save.js";
 import { createAudio, play, falloff, track } from "./audio.js";
 
 const mode = Screen.getMode();
@@ -95,30 +96,8 @@ function toggleOwl(i) {
     play(audio, owlSkin[i] ? "coin" : "restart", p.rx - camX);
 }
 
-const particleBatch = new Render3D.Batch();
 const particles = createParticles(tuning.particles.counts);
-const particleItems = [];
-for (let c = 0; c < COLORS.length; c++) {
-    const mesh = loadMesh(COLORS[c], true);
-    for (let i = particles.first[c]; i < particles.first[c + 1]; i++) particleItems.push(mesh.createInstance());
-    mesh.dispose();
-}
-instanceCount += particles.total;
 let particlePeak = 0, bursts = 0;
-function drawParticles() {
-    if (particles.changed) {
-        particleBatch.clear();
-        for (let i = 0; i < particles.total; i++) if (particles.active[i]) particleBatch.add(particleItems[i]);
-        particles.changed = false;
-        if (particles.alive > particlePeak) particlePeak = particles.alive;
-    }
-    if (particles.alive === 0) return;
-    for (let i = 0; i < particles.total; i++) {
-        if (!particles.active[i]) continue;
-        const k = particleScale(particles, i);
-        particleItems[i].setPosition(particles.x[i], particles.y[i], particles.z[i]).setScale(k, k, k);
-    }
-}
 function burst(color, count, x, y, z, spread, up, life, size, gravity, drag) {
     if (emit(particles, color, count, x, y, z, spread, up, life, size, gravity, drag) > 0) bursts++;
 }
@@ -139,6 +118,7 @@ function deathBurst(r) {
 }
 
 const game = createGame(tuning);
+const save = createSave(game);
 let rows = game.rows;
 const player = game.player, runners = game.runners, n = rows.n, M = rows.M;
 const slotBatch = [];
@@ -173,7 +153,7 @@ function releaseSlot(s) {
     }
     for (let j = 0; j < builtMovers[s]; j++) giveItem(slotMover[s * M + j]);
     builtMovers[s] = 0;
-    if (slotCoin[s] >= 0) { giveItem(slotCoin[s]); slotCoin[s] = -1; }
+    if (slotCoin[s] >= 0) { Tween3D.killTweensOf(item(slotCoin[s])); giveItem(slotCoin[s]); slotCoin[s] = -1; }
     if (slotRipple[s] >= 0) { giveItem(slotRipple[s]); slotRipple[s] = -1; }
     slotBatch[s].clear();
     builtKind[s] = -1;
@@ -226,7 +206,12 @@ function buildSlot(s) {
     }
     if (rows.hasCoin[s]) {
         slotCoin[s] = takeItem(P.coin);
-        b.add(item(slotCoin[s]).setPosition(rows.coinX[s], HIDDEN, z));
+        const base = kind === ROAD ? g0.roadY : g0.grassY;
+        const y = base + tuning.coin.height;
+        const coin = item(slotCoin[s]).setPosition(rows.coinX[s], y - tuning.coin.bob, z);
+        b.add(coin);
+        Tween3D.to(coin, { position: [rows.coinX[s], y + tuning.coin.bob, z] }, Math.PI / 4.8,
+            { ease: "inOutSine", repeat: Infinity, yoyo: true });
         coinShown[s] = 1;
     }
     rows.dirty[s] = 0;
@@ -275,13 +260,12 @@ function placeMovers() {
         }
     }
     if (movingCount > 0) Model3D.setPositions(moving, movingPos);
-    const cn = tuning.coin, angle = frame * cn.spin / 60, bob = Math.sin(frame * .08) * cn.bob;
+    const cn = tuning.coin, angle = frame * cn.spin / 60;
     for (let s = 0; s < n; s++) {
         if (slotCoin[s] < 0 || !coinShown[s] || !shown(rows.z[s])) continue;
         const it = item(slotCoin[s]);
-        if (!rows.hasCoin[s]) { it.setPosition(0, HIDDEN, 0); coinShown[s] = 0; continue; }
-        const base = builtKind[s] === ROAD ? g0.roadY : g0.grassY;
-        it.setPosition(rows.coinX[s], base + cn.height + bob, rows.z[s]).setRotationEuler(0, angle, 0);
+        if (!rows.hasCoin[s]) { Tween3D.killTweensOf(it); it.setPosition(0, HIDDEN, 0); coinShown[s] = 0; continue; }
+        it.setRotationEuler(0, angle, 0);
     }
     const seconds = frame / 60;
     for (let s = 0; s < n; s++) {
@@ -537,10 +521,9 @@ function drawScene(cam, rowMin, rowMax) {
     }
     dynamicBatch.draw(cam, Render3D.CULL_BACK, lights, stats);
     addStats(stats);
-    if (particleBatch.size > 0) {
-        particleBatch.draw(cam, Render3D.CULL_BACK, lights, stats);
-        addStats(stats);
-    }
+    const drawn = drawParticles(particles, cam);
+    frameStats.triangles += drawn * 2;
+    frameStats.submittedObjects += drawn;
 }
 function addStats(st) {
     frameStats.triangles += st.triangles; frameStats.drawPasses += st.drawPasses;
@@ -611,7 +594,7 @@ function writeReport() {
         player: { x: player.x, z: player.z, bestZ: player.bestZ, hops: player.hops, bumps: player.bumps },
         multi: { count: game.count, split, splitFrames, owl: Array.from(owlSkin), alive: runners.map(r => r.alive), scores: runners.map(r => r.score) },
         rows: rowSummary(), generated: rows.generated, rebuilt, poolUsed: used,
-        coins: game.coins, particlePeak, bursts, profile: Array.from(profile, v => Math.round(v * 100) / 100),
+        coins: game.coins, memoryCard: save.status, particlePeak, bursts, profile: Array.from(profile, v => Math.round(v * 100) / 100),
         events: eventList, instances: instanceCount, render, maxTriangles, maxDrawn,
         memoryBefore, memoryLoaded, memoryAfter: System.getMemoryStats(),
         vramUsedBytes: Screen.getMemoryStats(Screen.VRAM_USED_TOTAL), vramFreeBytes: Screen.getFreeVRAM(),
@@ -706,6 +689,7 @@ Loop.run({
         track(audio, game.state === TITLE || canRestart(game) ? "title" : "ambience");
         if (canRestart(game)) panelTime += dt; else panelTime = 0;
         updateParticles(particles, dt);
+        Tween3D.advance(dt);
         let rebuiltNow = 0, dirty = 0;
         for (let s = 0; s < n; s++) dirty += rows.dirty[s];
         if (dirty > REBUILD_BUDGET) {
@@ -732,7 +716,8 @@ Loop.run({
         placeMovers();
         drawPlayer(runners[0]);
         drawPlayer(runners[1]);
-        drawParticles();
+        if (particles.alive > particlePeak) particlePeak = particles.alive;
+        updateSave(save, game, dt, game.state === DEAD || game.state === TITLE, !wasDead && game.state === DEAD);
 
         if (pad.justPressed(Gamepad.L1)) {
             const x = player.rx, z = player.rz;
@@ -809,6 +794,9 @@ Loop.run({
         }
         if ((canRestart(game) || game.state === TITLE) && (frame & 32))
             smallFont.print(retryX, height * .86, retryText);
+        if (save.status === "saving" || save.status === "loading")
+            smallFont.print(hud.x, height - 24, save.status === "saving" ? "SAVING" : "LOADING");
+        else if (save.status !== "ready") smallFont.print(hud.x, height - 24, save.message);
         frame++;
         const time = Loop.getStats();
         cpu[cpuNext] = time.cpuMs;

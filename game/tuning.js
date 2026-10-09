@@ -19,9 +19,9 @@ export const tuning = {
         hopHeight: .32,
         squash: .78,
         bumpSeconds: .10,
-        yaw: {up: 0, down: Math.PI, left: Math.PI / 2, right: -Math.PI / 2},
+        yaw: { up: 0, down: Math.PI, left: Math.PI / 2, right: -Math.PI / 2 },
     },
-    ground: {grassY: .065, roadY: .01, railY: .07, waterY: -.12, logTop: .10, lilyTop: -.07},
+    ground: { grassY: .065, roadY: .01, railY: .07, waterY: -.12, logTop: .10, lilyTop: -.07 },
     rows: {
         slots: 36,
         ahead: 16,
@@ -70,8 +70,10 @@ export const tuning = {
         flatY: .14, flatXZ: 1.35,
         sinkSeconds: .45,
     },
-    hud: {font: "fonts/retro.ttf", fontSize: 32, x: 18, y: 14, topSize: 16, coinSize: 24,
-        title: ["CHICKEN", "HOP"], titleSize: 48},
+    hud: {
+        font: "fonts/retro.ttf", fontSize: 32, x: 18, y: 14, topSize: 16, coinSize: 24,
+        title: ["CHICKEN", "HOP"], titleSize: 48
+    },
     pools: {
         grass: 36, grass_alt: 36, grass_b: 36, grass_alt_b: 36, ripple: 36, road: 36, road_marked: 36,
         water: 36, rail: 36,
@@ -90,7 +92,7 @@ export const tuning = {
     particles: {
         counts: [36, 24, 12, 16, 6],
     },
-    coin: {height: .42, spin: 3.2, bob: .06},
+    coin: { height: .42, spin: 3.2, bob: .06 },
     multi: {
         startGap: 1,
         maxGap: 12,
@@ -104,8 +106,8 @@ export const tuning = {
         volume: 90,
         panWidth: 8, panMax: 70,
         near: 2, far: 9,
-        gain: {hop: .55, land_log: .8, land_lily: .7, bell: .6},
-        streamVolume: {title: 70, ambience: 55}, fadeMs: 700,
+        gain: { hop: .55, land_log: .8, land_lily: .7, bell: .6 },
+        streamVolume: { title: 70, ambience: 55 }, fadeMs: 700,
     },
     juice: {
         shakeSeconds: .35, shakeAmount: .22,
@@ -116,5 +118,5 @@ export const tuning = {
         rippleDrift: .35, rippleStill: .18,
         panelFade: .3,
     },
-    measurement: {cpuFrames: 600, maxEvents: 64},
+    measurement: { cpuFrames: 600, maxEvents: 64 },
 };

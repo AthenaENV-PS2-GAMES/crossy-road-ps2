@@ -84,6 +84,1024 @@ declare namespace std {
 }
 
 
+/* === Module: Vector (vector) === */
+/**
+ * PS2-aligned vector types.
+ *
+ * `Vector2`, `Vector3` and `Vector4` are separate JavaScript classes exposed
+ * by the `Vector` module. Arithmetic methods return new vectors and do not
+ * mutate their operands. `div()` rejects zero components.
+ *
+ * Example:
+ * ```js
+ * import * as Vector from 'Vector';
+ * const direction = new Vector.Vector3(3, 4, 0);
+ * console.log(direction.norm());
+ * const right = direction.cross(new Vector.Vector3(0, 0, 1));
+ * ```
+ */
+declare class Vector2 {
+    /** Creates a two-component vector. */
+    constructor(x: number, y: number);
+    /** Horizontal component. */
+    x: number;
+    /** Vertical component. */
+    y: number;
+    /** Returns Euclidean length. */
+    norm(): number;
+    /** Returns the dot product. */
+    dot(value: Vector2): number;
+    /** Returns Euclidean distance to another vector. */
+    distance(value: Vector2): number;
+    /** Returns squared distance without taking a square root. */
+    distance2(value: Vector2): number;
+    /** Returns the component-wise sum. */
+    add(value: Vector2): Vector2;
+    /** Returns the component-wise difference. */
+    sub(value: Vector2): Vector2;
+    /** Returns the component-wise product. */
+    mul(value: Vector2): Vector2;
+    /** Returns the component-wise quotient; zero divisors throw. */
+    div(value: Vector2): Vector2;
+    /** Returns a readable component representation. */
+    toString(): string;
+}
+
+declare class Vector3 {
+    /** Creates a three-component vector. */
+    constructor(x: number, y: number, z: number);
+    /** X component. */
+    x: number;
+    /** Y component. */
+    y: number;
+    /** Z component. */
+    z: number;
+    /** Returns Euclidean length. */
+    norm(): number;
+    /** Returns the dot product. */
+    dot(value: Vector3): number;
+    /** Returns the 3D cross product. */
+    cross(value: Vector3): Vector3;
+    /** Returns Euclidean distance to another vector. */
+    distance(value: Vector3): number;
+    /** Returns squared distance without taking a square root. */
+    distance2(value: Vector3): number;
+    /** Returns the component-wise sum. */
+    add(value: Vector3): Vector3;
+    /** Returns the component-wise difference. */
+    sub(value: Vector3): Vector3;
+    /** Returns the component-wise product. */
+    mul(value: Vector3): Vector3;
+    /** Returns the component-wise quotient; zero divisors throw. */
+    div(value: Vector3): Vector3;
+    /** Returns a readable component representation. */
+    toString(): string;
+}
+
+declare class Vector4 {
+    /** Creates a homogeneous four-component vector. */
+    constructor(x: number, y: number, z: number, w: number);
+    /** X component. */
+    x: number;
+    /** Y component. */
+    y: number;
+    /** Z component. */
+    z: number;
+    /** Homogeneous component: commonly 1 for points and 0 for directions. */
+    w: number;
+    /** Returns four-dimensional Euclidean length. */
+    norm(): number;
+    /** Returns the four-component dot product. */
+    dot(value: Vector4): number;
+    /** Returns the cross product with homogeneous component cleared. */
+    cross(value: Vector4): Vector4;
+    /** Returns Euclidean distance to another vector. */
+    distance(value: Vector4): number;
+    /** Returns squared distance without taking a square root. */
+    distance2(value: Vector4): number;
+    /** Returns the component-wise sum. */
+    add(value: Vector4): Vector4;
+    /** Returns the component-wise difference. */
+    sub(value: Vector4): Vector4;
+    /** Returns the component-wise product. */
+    mul(value: Vector4): Vector4;
+    /** Returns the component-wise quotient; zero divisors throw. */
+    div(value: Vector4): Vector4;
+    /** Returns a readable component representation. */
+    toString(): string;
+}
+
+
+/* === Module: Matrix4 (matrix4) === */
+/**
+ * Four-by-four transformation matrix using the PS2/AthenaEnv layout.
+ *
+ * Values are stored in column-major order. Translation components are at
+ * indices 12, 13 and 14; index 15 is the homogeneous component.
+ *
+ * Example:
+ * ```js
+ * const transform = new Matrix4();
+ * transform.set(12, 10).set(13, 20).set(14, 30);
+ * const inverse = transform.clone().invert();
+ * console.log(inverse.get(12), inverse.get(13), inverse.get(14));
+ * ```
+ */
+declare class Matrix4 {
+    /** Creates identity matrix, or initializes all 16 values when supplied. */
+    constructor();
+    constructor(
+        m00: number, m01: number, m02: number, m03: number,
+        m10: number, m11: number, m12: number, m13: number,
+        m20: number, m21: number, m22: number, m23: number,
+        m30: number, m31: number, m32: number, m33: number
+    );
+    /** Number of scalar components in the matrix. */
+    readonly length: 16;
+    /** Reads a scalar component at index 0..15. */
+    get(index: number): number;
+    /** Writes a scalar component at index 0..15 and returns this matrix. */
+    set(index: number, value: number): this;
+    /** Compares all 16 components exactly. */
+    equals(value: Matrix4): boolean;
+    /** Compares all components using an absolute epsilon tolerance. */
+    equalsEpsilon(value: Matrix4, epsilon: number): boolean;
+    /** Returns the 16 components as a new array. */
+    toArray(): number[];
+    /** Copies 16 values from an array-like object into this matrix. */
+    fromArray(values: ArrayLike<number>): this;
+    /** Returns an independent copy of this matrix. */
+    clone(): Matrix4;
+    /** Copies another matrix into this matrix. */
+    copy(value: Matrix4): this;
+    /** Returns this * value (column vectors); neither operand is mutated. */
+    multiply(value: Matrix4): Matrix4;
+    /** Replaces this matrix with identity. */
+    identity(): this;
+    /** Transposes this matrix in place. */
+    transpose(): this;
+    /** Inverts this matrix in place; throws for a singular matrix. */
+    invert(): this;
+    /** Returns a readable 16-value representation. */
+    toString(): string;
+}
+
+
+/* === Module: Camera3D (camera3d) === */
+/** Independent cameras; right-handed, facing -Z. Projection has reversed depth.
+ * Matrix getters return an owned snapshot, or overwrite and return out. */
+declare namespace Camera3D {
+    interface Projection { fovYDegrees?: number; aspect?: number; near?: number; far?: number; }
+    /** Screen position in viewport pixels (origin top-left, y down) and the
+     * distance in front of the camera along its view axis. */
+    interface ScreenPoint { x: number; y: number; depth: number; }
+    /** World-space ray: origin (x, y, z) and unit direction (dx, dy, dz). */
+    interface Ray { x: number; y: number; z: number; dx: number; dy: number; dz: number; }
+    class Camera {
+        /** Defaults: position [0,0,5], target [0,0,0], up [0,1,0], FOV 60, aspect 4/3, near .1, far 300. */
+        constructor(options?: Projection);
+        setProjection(options: Projection): this;
+        setPosition(x: number, y: number, z: number): this;
+        lookAt(x: number, y: number, z: number): this;
+        setUp(x: number, y: number, z: number): this;
+        getView(out?: Matrix4): Matrix4;
+        getProjection(out?: Matrix4): Matrix4;
+        getViewProjection(out?: Matrix4): Matrix4;
+        /** Viewport in pixels used by worldToScreen/screenToRay; default 640x448.
+         * Match the Screen mode, e.g. `camera.setViewport(mode.width, mode.height)`. */
+        setViewport(width: number, height: number): this;
+        /** Projects a world point to the viewport: null when it is behind the
+         * camera. Points outside the screen or beyond near/far still project
+         * (check x/y against the viewport and depth against near/far).
+         * Optional `out` is reused and returned. */
+        worldToScreen<T extends object = ScreenPoint>(x: number, y: number, z: number, out?: T): (T & ScreenPoint) | null;
+        /** The ray from the camera through a viewport pixel, e.g. for
+         * Scene3D.Scene.raycast(). Optional `out` is reused and returned. */
+        screenToRay<T extends object = Ray>(x: number, y: number, out?: T): T & Ray;
+        /** Idempotent; other operations reject a disposed camera. */
+        dispose(): void;
+    }
+}
+
+
+/* === Module: Loop (loop) === */
+/**
+ * Game loop driven by the runtime.
+ *
+ * `Loop.run()` registers the frame handlers and returns immediately; frames
+ * start once the entry script finishes. Each frame clears the screen, runs
+ * `update` and `draw`, then flips. Timers, promises and async functions keep
+ * running between frames, and the frame rate follows VSync.
+ *
+ * Variable step: `update(dt)` runs once per frame with the time since the
+ * previous frame, in seconds.
+ * ```js
+ * let x = 0;
+ * Loop.run(dt => {
+ *     x += 120 * dt; // 120 pixels per second at any frame rate
+ *     Draw.rect(x, 200, 32, 32, Color.new(255, 255, 255));
+ * });
+ * ```
+ *
+ * Fixed step: `update(step)` runs zero or more times per frame with the same
+ * `step`, as physics engines expect, and `draw(alpha)` once per frame.
+ * ```js
+ * Loop.run({
+ *     update(step) { world.step(step, 4); },
+ *     draw(alpha) { Box2DDraw.draw(world); },
+ * }, { fixedStep: 1 / 60 });
+ * ```
+ */
+declare namespace Loop {
+    /** Frame handlers. `this` inside them is the handlers object. */
+    interface Handlers {
+        /**
+         * Advances the game. Receives the scaled frame delta in seconds, or
+         * `fixedStep` when set; the first frame's delta is `0`.
+         */
+        update?(dt: number): void;
+        /**
+         * Draws the frame after the updates. With `fixedStep`, `alpha` (0..1)
+         * is the fraction of a step not simulated yet, to interpolate
+         * between the previous and the current state; otherwise it is `1`.
+         */
+        draw?(alpha: number): void;
+    }
+
+    interface Options {
+        /** Clears the screen before each frame. Defaults to `true`. */
+        clear?: boolean;
+        /** Packed RGBA color used to clear. Defaults to opaque black. */
+        clearColor?: number;
+        /**
+         * Longest real frame time counted, in seconds; longer stalls such as
+         * loading are cut to it. `0` disables the limit. Defaults to `0.25`.
+         */
+        maxDelta?: number;
+        /**
+         * Runs `update` with this constant step, in seconds, as many times as
+         * the elapsed time holds. `0`, the default, runs it once per frame
+         * with the frame delta.
+         */
+        fixedStep?: number;
+        /**
+         * Fixed steps per frame at most; the time beyond it is dropped so a
+         * slow frame cannot snowball. Defaults to `5`.
+         */
+        maxSteps?: number;
+        /**
+         * Vertical blanks per frame: `2` holds a steady 30 FPS on NTSC and
+         * 25 FPS on PAL. Defaults to `1`.
+         */
+        vsyncInterval?: number;
+    }
+
+    interface Stats {
+        /** Frames per second, measured over the last second. */
+        fps: number;
+        /** Real duration of the last frame in milliseconds, capped by `maxDelta`. */
+        frameMs: number;
+        /**
+         * Milliseconds of work in the last frame: from the previous flip up to
+         * this one, timers and promises included, without the VSync wait.
+         */
+        cpuMs: number;
+        /** `update` calls in the last frame. */
+        steps: number;
+        /** Interpolation factor passed to the last `draw`. */
+        alpha: number;
+    }
+
+    /**
+     * Starts the loop. A function is the same as `{ update: fn }`. Called
+     * again, even from a handler, it replaces the handlers and options without
+     * restarting the frame timing; the rest of the current frame is skipped.
+     * An exception thrown by a handler stops the program.
+     */
+    function run(handlers: ((dt: number) => void) | Handlers, options?: Options): void;
+    /**
+     * Stops the loop after the current frame; the program ends once no timers
+     * remain. Registered systems stay registered and run again with the next
+     * `Loop.run()`.
+     */
+    function stop(): void;
+    /** Returns whether the loop is running. */
+    function isRunning(): boolean;
+    /**
+     * Scales the time passed to `update`: `0.5` is slow motion and `0`
+     * pauses the game. At `0`, a variable-step `update` still runs with a
+     * delta of `0`, and a fixed-step one does not run. `draw` always runs.
+     */
+    function setTimeScale(scale: number): void;
+    /** Returns the time scale; `1` by default. */
+    function getTimeScale(): number;
+    /** Returns the scaled delta of the current frame, in seconds. */
+    function getDeltaTime(): number;
+    /** Returns the scaled time since the loop started, in seconds. */
+    function getElapsedTime(): number;
+    /** Returns the real time since the loop started, in seconds, ignoring the time scale. */
+    function getRealElapsedTime(): number;
+    /** Returns the number of frames since the loop started. */
+    function getFrameCount(): number;
+    /** Returns the frame statistics of the last frame. */
+    function getStats(): Stats;
+
+    /**
+     * A system: per-frame work that a module or the game registers once, and
+     * that runs around the `update` and `draw` handlers of `Loop.run()` for as
+     * long as the loop runs, surviving `Loop.run()` replacements and
+     * `Loop.stop()`. Each frame runs, in order:
+     *
+     * 1. `preUpdate(dt)` of every system, once;
+     * 2. `update(step)` of every system, then the `update` handler: once with
+     *    `dt`, or once per fixed step with `fixedStep`;
+     * 3. `postUpdate(dt)` of every system, once;
+     * 4. `preDraw(alpha)`, the `draw` handler, then `postDraw(alpha)`, for
+     *    overlays such as debug information or screen transitions.
+     *    `postDraw` runs whenever `preDraw` did, even if `draw` stopped the
+     *    loop, so a system can close what it opened (Camera2D's view).
+     *
+     * Within a phase, systems run by ascending `priority`, then in the order
+     * they were added. `this` is the system object. An exception thrown by a
+     * system stops the program, as one thrown by a handler.
+     */
+    interface System {
+        /** Unique name, for `removeSystem()` and `getSystems()`. */
+        name?: string;
+        /** Lower runs first. Integer; defaults to `0`. */
+        priority?: number;
+        /**
+         * `preUpdate` and `postUpdate` receive the real delta, ignoring
+         * `setTimeScale()`: for menus and transitions that keep moving while
+         * the game is paused. Defaults to `false`.
+         */
+        realTime?: boolean;
+        preUpdate?(dt: number): void;
+        /** Same cadence and argument as the `update` handler. */
+        update?(step: number): void;
+        postUpdate?(dt: number): void;
+        preDraw?(alpha: number): void;
+        postDraw?(alpha: number): void;
+    }
+
+    /** A registered system, as listed by `getSystems()`. */
+    interface SystemInfo {
+        name: string | undefined;
+        priority: number;
+        realTime: boolean;
+        /** Phases the system runs in, e.g. `["update", "postDraw"]`. */
+        phases: Array<"preUpdate" | "update" | "postUpdate" | "preDraw" | "postDraw">;
+        /** True for systems registered by native modules. */
+        native: boolean;
+    }
+
+    /**
+     * Registers a system and returns it. Its methods are read now: replacing
+     * them later has no effect until it is added again. A system added during
+     * a frame starts with the next phase. Throws when the object has no phase
+     * method, was already added, or its name is taken.
+     *
+     * @example
+     * ```js
+     * const flash = Loop.addSystem({
+     *     name: "flash",
+     *     priority: 100,
+     *     alpha: 128,              // 0x80 is opaque on the GS
+     *     postUpdate(dt) { this.alpha = Math.max(0, this.alpha - 256 * dt); },
+     *     postDraw() { Draw.rect(0, 0, 640, 448, Color.new(255, 255, 255, this.alpha)); },
+     * });
+     * ```
+     */
+    function addSystem<T extends System>(system: T): T;
+    /**
+     * Unregisters a system, given the object or its name. Returns whether it
+     * was registered. A system removed during a phase does not run again.
+     */
+    function removeSystem(system: System | string): boolean;
+    /** Registered systems, in run order. */
+    function getSystems(): SystemInfo[];
+}
+
+
+/* === Module: Lights (lights) === */
+/** Independent linear RGB lights. World directions point toward the source.
+ * Point lights (4 slots) light per vertex and fade with the distance as
+ * (1 - d^2 / range^2)^2, reaching 0 at range. */
+declare namespace Lights {
+    const MAX_DIRECTIONAL: 4;
+    const MAX_POINT: 4;
+    class Set {
+        /** Starts with black ambient and all four directional slots disabled. */
+        constructor();
+        /** Changes only when effective state changes; invalid setters are atomic. */
+        readonly revision: number;
+        setAmbient(r: number, g: number, b: number): this;
+        /** Slots 0..3; nonzero direction normalized in native code. RGB in [0,1]. */
+        setDirectional(slot: number, x: number, y: number, z: number, r: number, g: number, b: number): this;
+        disable(slot: number): this;
+        /** Slots 0..3: a world position, RGB in [0,1] and a range > 0. */
+        setPoint(slot: number, x: number, y: number, z: number, r: number, g: number, b: number, range: number): this;
+        disablePoint(slot: number): this;
+        /** Distance fog, applied by the GS to everything drawn with this set:
+         * full colour up to start, the fog colour from end on (view depth).
+         * 0 <= start < end, RGB in [0,1]. Ignored with 32-bit Z buffers. */
+        setFog(start: number, end: number, r: number, g: number, b: number): this;
+        disableFog(): this;
+        clear(): this;
+        dispose(): void;
+    }
+}
+
+
+/* === Module: Image (image) === */
+/**
+ * Image loading, CPU pixel access and textured 2D drawing.
+ *
+ * `Image` accepts paths understood by the active PS2 filesystem driver,
+ * including paths relative to the boot directory. A newly loaded image is
+ * CPU-resident; call `lock()` when it must remain resident in VRAM.
+ *
+ * Pixel buffers use the image's current `bpp` and dimensions. For 32-bit
+ * images, `pixels` contains four bytes per pixel. Palette data is used only
+ * by indexed 4-bit and 8-bit formats.
+ *
+ * Some Images borrow a texture owned by another object, such as
+ * `Video.frame`. Their storage cannot be replaced: setting `pixels`,
+ * `palette`, `bpp`, `texWidth` or `texHeight` throws a TypeError and
+ * `optimize()` returns false.
+ *
+ * @example
+ * ```js
+ * const logo = new Image('my_image.png');
+ * if (!logo.ready()) throw new Error('image load failed');
+ * logo.color = Color.new(255, 255, 255, 255);
+ * logo.lock();
+ * logo.draw(100, 80);
+ * Screen.flip();
+ * ```
+ */
+
+/** Optional destination, source-rectangle and tint overrides for `draw()`. */
+type ImageDrawOptions = {
+    /** Destination width in pixels; defaults to `width`. */
+    width?: number;
+    /** Destination height in pixels; defaults to `height`. */
+    height?: number;
+    /** Source rectangle's left coordinate in texture pixels. */
+    startx?: number;
+    /** Source rectangle's top coordinate in texture pixels. */
+    starty?: number;
+    /** Source rectangle's right coordinate in texture pixels. */
+    endx?: number;
+    /** Source rectangle's bottom coordinate in texture pixels. */
+    endy?: number;
+    /** Rotation angle in radians. */
+    angle?: number;
+    /** Packed RGBA tint, normally created with `Color.new()`. */
+    color?: number;
+};
+
+/** Options of `drawList()`. */
+type ImageDrawListOptions = {
+    /** Offset added to every sprite; defaults to 0. */
+    x?: number;
+    y?: number;
+    /** First record to draw; defaults to 0. */
+    first?: number;
+    /** Records to draw; defaults to the rest of the buffer. */
+    count?: number;
+};
+
+/** Options controlling image creation and texture upload behavior. */
+type ImageOptions = {
+    /** Whether texture uploads use the deferred VIF1 path; defaults to true. */
+    delayed?: boolean;
+};
+
+declare class Image {
+    /** Loads an image from `path`, or creates an empty image when omitted. */
+    constructor(options?: ImageOptions);
+    constructor(path: string, options?: ImageOptions);
+    /** Linear size in bytes of the current pixel buffer. */
+    readonly size: number;
+    /** Whether texture uploads use the deferred VIF1 path. */
+    readonly delayed: boolean;
+    /** CPU pixel buffer; assigning it copies the supplied `ArrayBuffer`. */
+    pixels: ArrayBuffer;
+    /** CPU palette buffer for indexed images; required for indexed images. */
+    palette: ArrayBuffer;
+    /** Texture width in pixels (1..1024); changing it discards pixels and VRAM. */
+    texWidth: number;
+    /** Texture height in pixels (1..1024); changing it discards pixels and VRAM. */
+    texHeight: number;
+    /** Pixel storage format: 4, 8, 16, 24 or 32 bits per pixel; changing it discards storage. */
+    bpp: number;
+    /** Texture filter mode; must be GS_FILTER_NEAREST or GS_FILTER_LINEAR. */
+    filter: number;
+    /** Whether dimensions and a valid pixel buffer are available for drawing. */
+    renderable: boolean;
+    /** Destination draw width in pixels. */
+    width: number;
+    /** Destination draw height in pixels. */
+    height: number;
+    /** Source rectangle's left coordinate in texture pixels. */
+    startx: number;
+    /** Source rectangle's top coordinate in texture pixels. */
+    starty: number;
+    /** Source rectangle's right coordinate in texture pixels. */
+    endx: number;
+    /** Source rectangle's bottom coordinate in texture pixels. */
+    endy: number;
+    /** Rotation angle in radians used by `draw()`. */
+    angle: number;
+    /** Packed RGBA tint multiplied with sampled texture color. */
+    color: number;
+
+    /** True when dimensions, pixel data and indexed palette data are valid. */
+    ready(): boolean;
+    /** True while an ImageList request is waiting or being processed. */
+    loading(): boolean;
+    /** True when the most recent ImageList request failed. */
+    failed(): boolean;
+    /**
+     * Returns the loading state. `decoded` has CPU pixels; `upload_pending`
+     * has a queued VRAM upload; `ready` is resident in VRAM.
+     */
+    status(): "queued" | "loading" | "decoded" | "upload_pending" | "ready" | "failed" | "cancelled";
+    /** Returns structured load diagnostics, or undefined when no load failed. */
+    error(): ImageLoadError | undefined;
+    /** Queues a textured sprite at `(x, y)` for the current frame. */
+    draw(x: number, y: number, options?: ImageDrawOptions): void;
+    /**
+     * Queues many sprites of this image at once: the texture state is sent
+     * once per 128 sprites instead of once per sprite, which makes it several
+     * times cheaper than as many `draw()` calls. `sprites` uses the record
+     * layout of `TileMap.SpriteBuffer` (`TileMap.layout`: x, y, w, h, u1, v1,
+     * u2, v2 in pixels and texels, r, g, b, a with 128 as neutral), so one
+     * buffer serves both; the TileMap module is not required. Records with a
+     * zero width or height are skipped, and so are, under a Camera2D camera,
+     * records outside its viewport.
+     *
+     * @example
+     * ```js
+     * const sprites = new Float32Array(16 * count);        // 64-byte records
+     * const colors = new Uint32Array(sprites.buffer);
+     * // record i: sprites[16*i + 0..7] = x, y, w, h, u1, v1, u2, v2;
+     * //           colors[16*i + 8..11] = r, g, b, a
+     * image.drawList(sprites, { x: cameraX, y: cameraY });
+     * ```
+     */
+    drawList(sprites: ArrayBuffer | ArrayBufferView, options?: ImageDrawListOptions): void;
+    /** Uploads the image synchronously and pins its VRAM allocation. */
+    lock(): boolean;
+    /** Allows the texture manager to evict the image from VRAM. */
+    unlock(): boolean;
+    /** Returns whether the image is currently pinned in VRAM. */
+    locked(): boolean;
+    /** Converts an unlocked CT24 texture to CT16S and invalidates its VRAM copy. */
+    optimize(): boolean;
+    /** Releases the native image and its CPU/VRAM resources. */
+    free(): void;
+
+    /** Copies a rectangular VRAM region between two resident images. */
+    static copyVRAMBlock(
+        source: Image,
+        sourceX: number,
+        sourceY: number,
+        destination: Image,
+        destinationX: number,
+        destinationY: number
+    ): void;
+}
+
+/** Structured diagnostics for a failed image load. */
+interface ImageLoadError {
+    /** Path as it was requested. */
+    path: string;
+    code: "open_failed" | "unsupported_format" | "decode_failed" | "surface_failed" | "upload_failed";
+    /** `upload` is reported only for ImageList requests with an `upload` option. */
+    stage: "open" | "decode" | "surface" | "upload";
+    /** Human-readable description. */
+    message: string;
+}
+
+
+/* === Module: Quaternion (quaternion) === */
+/** Right-handed, normalized xyzw rotation. Angles are radians.
+ * Mutating methods return this; operands are unchanged; dispose is idempotent. */
+declare namespace Quaternion {
+    class Quaternion {
+        constructor();
+        constructor(x: number, y: number, z: number, w: number);
+        setAxisAngle(x: number, y: number, z: number, radians: number): this;
+        /** Euler radians composed as Rz * Ry * Rx (x applied first). */
+        setEuler(x: number, y: number, z: number): this;
+        /** Sets this = this * other. */
+        multiply(other: Quaternion): this;
+        /** Shortest path toward other, t in [0,1]. */
+        slerp(other: Quaternion, t: number): this;
+        /** Independent snapshot. */
+        toArray(): [number, number, number, number];
+        dispose(): void;
+    }
+}
+
+
+/* === Module: Model3D (model3d) === */
+/** Immutable mesh streams. Geometry and material descriptors are copied;
+ * instances/batches retain native resources, including textures. */
+declare namespace Model3D {
+    const MAX_VERTICES: number;
+    /** Joint indices must be below MAX_JOINTS (256); the VU1 path accepts 24 joints. */
+    const MAX_JOINTS: number;
+    /** At most MAX_TARGETS (8) morph targets per mesh. */
+    const MAX_TARGETS: number;
+    /** UV components must be finite with |u|,|v| <= UV_LIMIT (16): tiled UVs
+     * use repeat addressing within the GS texel precision. */
+    const UV_LIMIT: number;
+    const UNLIT: 0; const DIFFUSE: 1;
+    class Texture {
+        private constructor();
+        static readonly NEAREST: 0; static readonly LINEAR: 1;
+        /** Addressing per axis: CLAMP (to edge, the default), REPEAT on both
+         * axes, or REPEAT_U / REPEAT_V on one. */
+        static readonly CLAMP: 0; static readonly REPEAT_U: 1; static readonly REPEAT_V: 2; static readonly REPEAT: 3;
+        /** Copies 0xAABBGGRR pixels; alpha (0..255) matters only to alphaCutoff materials. Power-of-two sizes 1..512;
+         * no mipmaps. Honors subarray(); main thread only. */
+        static fromPixels(pixels: {width: number; height: number; pixels: Uint32Array; filter?: 0 | 1; wrap?: 0 | 1 | 2 | 3}): Texture;
+        /** Synchronous decoding. RGB/RGBA, 16-bit and 4/8-bit palette images
+         * (canonical 32-bit CPU copy). VRAM uses lossless T4/T8 for <=16/256
+         * distinct GS RGBA colors when texture+CLUT is smaller than CT32.
+         * Errors name the path and the reason. */
+        static load(path: string, filter?: 0 | 1, wrap?: 0 | 1 | 2 | 3): Texture;
+        readonly width: number; readonly height: number; readonly wrap: 0 | 1 | 2 | 3;
+        /** Makes the texture resident in VRAM now (one synchronous upload and
+         * GS wait), e.g. on a loading screen, instead of at the first draw.
+         * Throws when VRAM is full. */
+        upload(): this;
+        /** Existing meshes retain the texture. Final native release defers VRAM
+         * and pixel cleanup until the GS has finished reading them. */
+        dispose(): void;
+    }
+    interface Material {
+        /** Defaults to UNLIT. DIFFUSE uses world ambient/directional lights. */
+        shading?: 0 | 1;
+        /** Four finite linear RGBA values in [0,1], multiplied by vertex colors
+         * and stored as RGBA8. Defaults to white; alpha is used by alphaCutoff. */
+        baseColor?: Float32Array;
+        texture?: Texture;
+        /** Alpha mask (glTF alphaMode MASK): pixels whose alpha (texture
+         * alpha times vertex alpha) is below the cutoff, in [0,1], are
+         * discarded by the GS alpha test; the rest stay opaque. */
+        alphaCutoff?: number;
+    }
+    interface Geometry {
+        positions: Float32Array; colors?: Float32Array;
+        /** Triangle-list corners; copied into compact batches when storage is
+         * smaller. The original triangle order and vertexCount are preserved. */
+        indices?: Uint32Array;
+        /** One nonzero xyz normal per source vertex; normalized during copy.
+         * Missing DIFFUSE normals are generated per face, before expansion. */
+        normals?: Float32Array;
+        /** One finite uv pair per source vertex, |u|,|v| <= UV_LIMIT. Origin
+         * top-left; outside [0,1] the texture's wrap mode applies. */
+        texcoords?: Float32Array;
+        /** Four joint indices and four nonnegative finite weights per source
+         * vertex, supplied together. Each vertex needs a positive weight;
+         * weights are normalized during copy.
+         * Skin data needs a skin/joint palette to deform (e.g. a loaded glTF node). */
+        joints?: Uint16Array;
+        weights?: Float32Array;
+        /** Concatenated xyz position deltas, one complete source-vertex block
+         * per target (1..MAX_TARGETS). Scene3D.Node.setWeights controls the blend. */
+        targetPositions?: Float32Array;
+        /** Matching concatenated xyz normal deltas; requires base normals. */
+        targetNormals?: Float32Array;
+        material?: Material;
+    }
+    class Mesh {
+        private constructor();
+        /** xyz positions, optional normalized rgba, optional triangle-list indices. Honors subarray(). */
+        static fromGeometry(geometry: Geometry): Mesh;
+        /** Expanded triangle vertex count, at most MAX_VERTICES. */
+        readonly vertexCount: number;
+        /** Model-space AABB: minX, minY, minZ, maxX, maxY, maxZ. */
+        getBounds(): number[]; getBounds(out: Float32Array): Float32Array;
+        createInstance(): Instance;
+        /** Drops this handle; existing instances retain the native mesh. */
+        dispose(): void;
+    }
+    class Instance {
+        private constructor();
+        setPosition(x: number, y: number, z: number): this;
+        setScale(x: number, y: number, z: number): this;
+        /** Radians, XYZ local rotations composed Rz * Ry * Rx. */
+        setRotationEuler(x: number, y: number, z: number): this;
+        setRotationQuaternion(x: number, y: number, z: number, w: number): this;
+        /** Owned snapshot, or fills and returns out; never a borrowed matrix. */
+        getTransform(out?: Matrix4): Matrix4;
+        /** Local TRS as set (rotation normalized, xyzw): a new Array, or out
+         * filled and returned (no allocation per frame). */
+        getPosition(): number[]; getPosition(out: Float32Array): Float32Array;
+        getRotation(): number[]; getRotation(out: Float32Array): Float32Array;
+        getScale(): number[]; getScale(out: Float32Array): Float32Array;
+        dispose(): void;
+    }
+    /** Synchronous static OBJ/glTF/GLB loading; see docs/3D.md for the supported subset.
+     * Errors name the file and the exact unsupported feature. */
+    function load(path: string, material?: Material): Mesh;
+    /** Bulk setters, one call per frame instead of one per instance: values holds
+     * x, y, z for instances[i] at values[3i..3i+2] (it may be longer). Every
+     * value is checked finite before any instance changes. Returns the count. */
+    function setPositions(instances: Instance[], values: Float32Array): number;
+    /** Radians, composed Rz * Ry * Rx as Instance.setRotationEuler(). */
+    function setRotationsEuler(instances: Instance[], values: Float32Array): number;
+}
+
+
+/* === Module: Render3D (render3d) === */
+/** Native opaque unlit/diffuse and textured triangles with homogeneous clipping in C for
+ * crossing objects; VU1 transforms and lights fully contained objects.
+ * Draw never advances animation/physics. Enable Screen zbuffering. */
+declare namespace Render3D {
+    const CULL_NONE: 0; const CULL_BACK: 1; const CULL_FRONT: -1;
+    type CullMode = 0 | 1 | -1;
+    interface Stats {
+        submittedObjects: number; culledObjects: number;
+        /** Accepted objects drawn, even when clipping rejects all their triangles. */
+        drawPasses: number;
+        /** GS/VU1 passes emitted. Batch and Scene3D draws share one pass among
+         * consecutive objects with the same camera, program and texture. */
+        pipelinePasses: number;
+        /** Triangle list sent to VU1 after native clipping; not rasterized count. */
+        triangles: number; vuBatches: number;
+        /** Source triangles of objects retained by AABB culling. */
+        sourceTriangles: number;
+        /** Source triangles partially clipped and producing visible polygons. */
+        clippedTriangles: number;
+        /** Source triangles rejected by precise clipping. */
+        rejectedTriangles: number;
+        /** Stream payload sent inline or by DMA_REF, including chunk padding
+         * and skin joints/weights when applicable.
+         * Excludes tags, constants, texture/program uploads, GS state and 2D draws. */
+        geometryBytes: number;
+        /** Objects crossing the screen edges drawn by VU1 without clipping,
+         * inside the GS guard band (the scissor trims them). */
+        guardBandObjects: number;
+        /** Objects crossing the near plane clipped on VU1 (inside the guard
+         * band otherwise); their triangles count before clipping. */
+        nearClipObjects: number;
+        /** Meshes with morph targets blended on VU1. */
+        vuMorphObjects: number;
+        /** Objects crossing the frustum beyond the guard band, clipped
+         * triangle by triangle in C on the EE: the expensive path (a large
+         * mesh around the camera costs milliseconds). Split such meshes. */
+        cpuClipObjects: number;
+    }
+    /** Lights are borrowed for this call. Omitted lights mean black ambient and
+     * no directional lights. UNLIT materials ignore lights. Scale 0
+     * draws nothing (counted as culled); other singular DIFFUSE normal
+     * transforms throw, naming the reason; drawing does not update lights or transforms.
+     * Pass `stats` to reuse an object every frame: its fields are assigned and
+     * it is returned, instead of allocating a new Stats per call. Pass `null`
+     * to skip the per-call stats (returns undefined, the cheapest call) and
+     * read the totals once per frame with frameStats(). */
+    function draw<T extends object = Stats>(instance: Model3D.Instance, camera: Camera3D.Camera, cullMode?: CullMode,
+        lights?: Lights.Set, stats?: T): T & Stats;
+    function draw(instance: Model3D.Instance, camera: Camera3D.Camera, cullMode: CullMode | undefined,
+        lights: Lights.Set | undefined, stats: null): undefined;
+    /** Totals of every successful Render3D.draw, Batch.draw and Scene3D draw
+     * since the last reset (with or without per-call stats). `reset`
+     * (default true) clears them, so call it once per frame. */
+    function frameStats<T extends object = Stats>(stats?: T, reset?: boolean): T & Stats;
+    /** Runs fn with one shared GS/VU1 pass: consecutive draws with the same
+     * camera, program and texture skip the barrier, program upload, camera
+     * constants and GS state (and unchanged lights). The pass closes when fn
+     * returns or throws; fn's result is returned. Inside fn, draw only 3D:
+     * no 2D drawing, flip or camera change. Groups do not nest. */
+    function group<R>(fn: () => R): R;
+    class Batch {
+        constructor();
+        readonly size: number;
+        /** Retains the native instance, independently of its JS handle. */
+        add(instance: Model3D.Instance): this;
+        clear(): this;
+        /** Optional `stats` is reused and returned, as in Render3D.draw(); null returns undefined. */
+        draw<T extends object = Stats>(camera: Camera3D.Camera, cullMode?: CullMode, lights?: Lights.Set,
+            stats?: T): T & Stats;
+        draw(camera: Camera3D.Camera, cullMode: CullMode | undefined, lights: Lights.Set | undefined,
+            stats: null): undefined;
+        dispose(): void;
+    }
+}
+
+
+/* === Module: Scene3D (scene3d) === */
+/** Native transform hierarchy. A Node is the scene-graph instance of a mesh;
+ * world = parent world * local TRS. Setters only mark dirty flags: call
+ * scene.update() (or attachLoop()) before draw and world queries, which throw
+ * while the scene is stale instead of returning outdated data. */
+declare namespace Scene3D {
+    /** Releases reusable CPU skinning/morph buffers after draw returns, for
+     * a level transition or memory pressure. They grow again when needed. */
+    function trimScratch(): void;
+    /** Levels from the root, root included. Deeper hierarchies are rejected. */
+    const MAX_DEPTH: number;
+    /** Bulk setters, one call per frame instead of one per node: values holds
+     * x, y, z for nodes[i] at values[3i..3i+2] (it may be longer). Every
+     * value is checked finite before any node changes. Returns the count. */
+    function setPositions(nodes: Node[], values: Float32Array): number;
+    /** Radians, composed Rz * Ry * Rx as Node.setRotationEuler(). */
+    function setRotationsEuler(nodes: Node[], values: Float32Array): number;
+    /** 2D physics on 3D nodes: x, y and an angle about Z (radians) per node,
+     * the layout of Box2D's `world.readTransforms()`. Each node keeps its z.
+     * ```js
+     * world.readTransforms(bodies, transforms);
+     * Scene3D.setTransforms2D(crates, transforms);
+     * ``` */
+    function setTransforms2D(nodes: Node[], values: Float32Array): number;
+    interface UpdateStats { visitedNodes: number; worldUpdates: number; boundsUpdates: number; }
+    /** Nearest raycast hit: node, distance along the ray, world point
+     * (x, y, z), unit normal facing the ray (nx, ny, nz) and source triangle
+     * index (-1 for an AABB hit). */
+    interface RaycastHit {
+        node: Node; distance: number; x: number; y: number; z: number;
+        nx: number; ny: number; nz: number; triangle: number;
+    }
+    interface RaycastOptions {
+        /** Test triangles (default true) or only the meshes' world AABBs. */
+        precise?: boolean;
+    }
+    interface DrawStats extends Render3D.Stats {
+        /** Subtrees rejected by their world bounds; their meshes count as culled. */
+        culledSubtrees: number;
+        /** Meshes sent to Render3D, sorted by pipeline in traversal order. */
+        queuedObjects: number;
+    }
+    interface Bounds { min: [number, number, number]; max: [number, number, number]; }
+    class Node {
+        /** Retains the optional mesh natively, independently of its handle. */
+        constructor(mesh?: Model3D.Mesh);
+        /** Replaces the retained mesh; null removes it. */
+        setMesh(mesh: Model3D.Mesh | null): this;
+        readonly hasMesh: boolean;
+        setPosition(x: number, y: number, z: number): this;
+        setScale(x: number, y: number, z: number): this;
+        /** Radians, XYZ local rotations composed Rz * Ry * Rx. */
+        setRotationEuler(x: number, y: number, z: number): this;
+        setRotationQuaternion(x: number, y: number, z: number, w: number): this;
+        /** Native motion, integrated by scene.advance(dt) / attachLoop() without
+         * a JS call per frame. Units per second in the parent space. */
+        setVelocity(x: number, y: number, z: number): this;
+        /** Angular velocity in rad/s about the local axes: direction is the
+         * axis, length the speed. (0, 0, 0) stops the spin. */
+        setSpin(x: number, y: number, z: number): this;
+        /** Hidden nodes and descendants are not drawn nor included in bounds. */
+        visible: boolean;
+        /** Reparents child, keeping its local transform; the parent retains it.
+         * Throws RangeError for cycles, scene roots and MAX_DEPTH overflow. */
+        add(child: Node): this;
+        /** Removes this node from its parent; harmless without one. */
+        detach(): this;
+        /** The same live JS object for this native parent, or null. Wrapper
+         * identity (including subclass/properties) is preserved while live. */
+        getParent(): Node | null;
+        readonly childCount: number;
+        /** The same live JS object for the child at index. */
+        getChild(index: number): Node;
+        /** Always current. Owned snapshot, or fills and returns out. */
+        getLocalTransform(out?: Matrix4): Matrix4;
+        /** Transform of the last update. Throws while stale or outside a scene. */
+        getWorldTransform(out?: Matrix4): Matrix4;
+        /** World AABB of visible meshes in the subtree, or null when empty.
+         * Throws while stale or outside a scene. */
+        getWorldBounds(): Bounds | null;
+        /** Morph target weights (up to 8; missing ones become 0). A mesh with
+         * morph targets is blended in C at draw: base + sum(weight * delta). */
+        setWeights(weights: ArrayLike<number>): this;
+        /** One weight per morph target of the node's mesh (empty without). */
+        getWeights(): number[];
+        /** Invalidates this shared JS wrapper (all aliases). Parents/scenes
+         * retain the native node; later access can create another wrapper.
+         * The wrapper cache is weak and does not keep JS objects alive. */
+        dispose(): void;
+    }
+    class Scene {
+        constructor();
+        /** The same live JS object for the root node owned by the scene. */
+        readonly root: Node;
+        /** True when a node changed after the last update. */
+        readonly stale: boolean;
+        /** True while a Loop POST_UPDATE system updates this scene. */
+        readonly attached: boolean;
+        /** Integrates node motion (setVelocity/setSpin) for dt seconds and
+         * returns the moved node count. attachLoop() does it every frame with
+         * the Loop dt, before update(). */
+        advance(dt: number): number;
+        /** Recomputes dirty world transforms and subtree bounds. Optional
+         * `stats` is reused and returned instead of allocating a new object;
+         * null skips it and returns undefined. */
+        update<T extends object = UpdateStats>(stats?: T): T & UpdateStats;
+        update(stats: null): undefined;
+        /** Culls subtrees, queues meshes and draws them through Render3D.
+         * Never updates the scene; throws while stale. Lights are borrowed.
+         * `stats` as in Render3D.draw(): reused, or null to return undefined;
+         * the render totals feed Render3D.frameStats() either way. */
+        draw<T extends object = DrawStats>(camera: Camera3D.Camera, cullMode?: Render3D.CullMode, lights?: Lights.Set,
+            stats?: T): T & DrawStats;
+        draw(camera: Camera3D.Camera, cullMode: Render3D.CullMode | undefined, lights: Lights.Set | undefined,
+            stats: null): undefined;
+        /** Nearest visible mesh hit by the ray (e.g. Camera3D.Camera.screenToRay())
+         * within maxDistance (default unlimited), or null. Uses the transforms of
+         * the last update(); throws while stale. Skinned meshes are skipped and
+         * morphed meshes are tested in their base pose. Optional `out` is reused. */
+        raycast<T extends object = RaycastHit>(ray: Camera3D.Ray, maxDistance?: number, options?: RaycastOptions,
+            out?: T): (T & RaycastHit) | null;
+        /** Nodes whose visible, unskinned mesh world AABB overlaps the box, in
+         * traversal order. Optional `out` array is cleared, refilled and returned. */
+        queryBox(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number,
+            out?: Node[]): Node[];
+        /** Updates natively in Loop POST_UPDATE. Lower priority runs first. */
+        attachLoop(priority?: number): this;
+        detachLoop(): this;
+        /** Also detaches from the Loop; existing node handles stay valid. */
+        dispose(): void;
+    }
+}
+
+
+/* === Module: CameraRig3D (camerarig3d) === */
+/** Native Camera3D controllers. The script configures a rig and feeds input
+ * (rotate/zoom); following, orbiting and smoothing run in C every frame in one
+ * Loop system (attachLoop()) after Scene3D updates world transforms, or
+ * manually with update(dt). A rig keeps its camera alive, also after the
+ * camera handle is disposed, and skips frames whose target node is stale.
+ * Rigs stay active until dispose(), even when no variable holds them. */
+declare namespace CameraRig3D {
+    /** Default attachLoop() priority: after Scene3D.attachLoop() (0). */
+    const LOOP_PRIORITY: number;
+    interface Rig {
+        /** null: Orbit uses its fixed centre; Follow stops moving. */
+        setTarget(target: Scene3D.Node | null): this;
+        /** Exponential smoothing in 1/s for the eye and the look point; 0 is
+         * rigid (default). Frame-rate independent. */
+        setSharpness(eye: number, look: number): this;
+        /** The next update jumps to the goal without smoothing. */
+        snap(): this;
+        enabled: boolean;
+        /** True when it moved the camera. */
+        update(dt: number): boolean;
+        dispose(): void;
+    }
+    class Follow implements Rig {
+        constructor(camera: Camera3D.Camera, target: Scene3D.Node);
+        /** Eye offset; local (default) turns and scales with the target,
+         * otherwise it is added to the target's world position. Default 0, 2, 6. */
+        setOffset(x: number, y: number, z: number, local?: boolean): this;
+        /** Look point in the target's local space. Default 0, 0, 0. */
+        setLookOffset(x: number, y: number, z: number): this;
+        setTarget(target: Scene3D.Node | null): this;
+        setSharpness(eye: number, look: number): this;
+        snap(): this;
+        enabled: boolean;
+        update(dt: number): boolean;
+        dispose(): void;
+    }
+    class Orbit implements Rig {
+        /** Without a target, the centre is the fixed point of setCenter(). */
+        constructor(camera: Camera3D.Camera, target?: Scene3D.Node | null);
+        /** Offset from the target's world position, or the fixed centre. */
+        setCenter(x: number, y: number, z: number): this;
+        /** Radians: yaw about +Y (0 sits on +Z looking down -Z), pitch up. */
+        setAngles(yaw: number, pitch: number): this;
+        /** Input deltas, clamped to the limits. */
+        rotate(yaw: number, pitch: number): this;
+        zoom(delta: number): this;
+        /** Pitch within -1.56..1.56 rad; 0 < distanceMin <= distanceMax.
+         * Defaults -1.5, 1.5, 0.1, 1e6. */
+        setLimits(pitchMin: number, pitchMax: number, distanceMin: number, distanceMax: number): this;
+        readonly yaw: number;
+        readonly pitch: number;
+        /** Default 6. */
+        distance: number;
+        /** Yaw speed in rad/s. */
+        autoRotate: number;
+        setTarget(target: Scene3D.Node | null): this;
+        setSharpness(eye: number, look: number): this;
+        snap(): this;
+        enabled: boolean;
+        update(dt: number): boolean;
+        dispose(): void;
+    }
+    /** Updates every enabled rig; returns how many moved their camera. */
+    function update(dt: number): number;
+    /** One native POST_UPDATE system for every rig; idempotent. */
+    function attachLoop(priority?: number): void;
+    function detachLoop(): boolean;
+    function isAttached(): boolean;
+}
+
+
 /* === Module: Color (color) === */
 /**
  * Packs RGBA components into the 32-bit color format used by AthenaEnv.
@@ -759,1040 +1777,6 @@ declare namespace Gamepad {
 }
 
 
-/* === Module: Loop (loop) === */
-/**
- * Game loop driven by the runtime.
- *
- * `Loop.run()` registers the frame handlers and returns immediately; frames
- * start once the entry script finishes. Each frame clears the screen, runs
- * `update` and `draw`, then flips. Timers, promises and async functions keep
- * running between frames, and the frame rate follows VSync.
- *
- * Variable step: `update(dt)` runs once per frame with the time since the
- * previous frame, in seconds.
- * ```js
- * let x = 0;
- * Loop.run(dt => {
- *     x += 120 * dt; // 120 pixels per second at any frame rate
- *     Draw.rect(x, 200, 32, 32, Color.new(255, 255, 255));
- * });
- * ```
- *
- * Fixed step: `update(step)` runs zero or more times per frame with the same
- * `step`, as physics engines expect, and `draw(alpha)` once per frame.
- * ```js
- * Loop.run({
- *     update(step) { world.step(step, 4); },
- *     draw(alpha) { Box2DDraw.draw(world); },
- * }, { fixedStep: 1 / 60 });
- * ```
- */
-declare namespace Loop {
-    /** Frame handlers. `this` inside them is the handlers object. */
-    interface Handlers {
-        /**
-         * Advances the game. Receives the scaled frame delta in seconds, or
-         * `fixedStep` when set; the first frame's delta is `0`.
-         */
-        update?(dt: number): void;
-        /**
-         * Draws the frame after the updates. With `fixedStep`, `alpha` (0..1)
-         * is the fraction of a step not simulated yet, to interpolate
-         * between the previous and the current state; otherwise it is `1`.
-         */
-        draw?(alpha: number): void;
-    }
-
-    interface Options {
-        /** Clears the screen before each frame. Defaults to `true`. */
-        clear?: boolean;
-        /** Packed RGBA color used to clear. Defaults to opaque black. */
-        clearColor?: number;
-        /**
-         * Longest real frame time counted, in seconds; longer stalls such as
-         * loading are cut to it. `0` disables the limit. Defaults to `0.25`.
-         */
-        maxDelta?: number;
-        /**
-         * Runs `update` with this constant step, in seconds, as many times as
-         * the elapsed time holds. `0`, the default, runs it once per frame
-         * with the frame delta.
-         */
-        fixedStep?: number;
-        /**
-         * Fixed steps per frame at most; the time beyond it is dropped so a
-         * slow frame cannot snowball. Defaults to `5`.
-         */
-        maxSteps?: number;
-        /**
-         * Vertical blanks per frame: `2` holds a steady 30 FPS on NTSC and
-         * 25 FPS on PAL. Defaults to `1`.
-         */
-        vsyncInterval?: number;
-    }
-
-    interface Stats {
-        /** Frames per second, measured over the last second. */
-        fps: number;
-        /** Real duration of the last frame in milliseconds, capped by `maxDelta`. */
-        frameMs: number;
-        /**
-         * Milliseconds of work in the last frame: from the previous flip up to
-         * this one, timers and promises included, without the VSync wait.
-         */
-        cpuMs: number;
-        /** `update` calls in the last frame. */
-        steps: number;
-        /** Interpolation factor passed to the last `draw`. */
-        alpha: number;
-    }
-
-    /**
-     * Starts the loop. A function is the same as `{ update: fn }`. Called
-     * again, even from a handler, it replaces the handlers and options without
-     * restarting the frame timing; the rest of the current frame is skipped.
-     * An exception thrown by a handler stops the program.
-     */
-    function run(handlers: ((dt: number) => void) | Handlers, options?: Options): void;
-    /**
-     * Stops the loop after the current frame; the program ends once no timers
-     * remain. Registered systems stay registered and run again with the next
-     * `Loop.run()`.
-     */
-    function stop(): void;
-    /** Returns whether the loop is running. */
-    function isRunning(): boolean;
-    /**
-     * Scales the time passed to `update`: `0.5` is slow motion and `0`
-     * pauses the game. At `0`, a variable-step `update` still runs with a
-     * delta of `0`, and a fixed-step one does not run. `draw` always runs.
-     */
-    function setTimeScale(scale: number): void;
-    /** Returns the time scale; `1` by default. */
-    function getTimeScale(): number;
-    /** Returns the scaled delta of the current frame, in seconds. */
-    function getDeltaTime(): number;
-    /** Returns the scaled time since the loop started, in seconds. */
-    function getElapsedTime(): number;
-    /** Returns the real time since the loop started, in seconds, ignoring the time scale. */
-    function getRealElapsedTime(): number;
-    /** Returns the number of frames since the loop started. */
-    function getFrameCount(): number;
-    /** Returns the frame statistics of the last frame. */
-    function getStats(): Stats;
-
-    /**
-     * A system: per-frame work that a module or the game registers once, and
-     * that runs around the `update` and `draw` handlers of `Loop.run()` for as
-     * long as the loop runs, surviving `Loop.run()` replacements and
-     * `Loop.stop()`. Each frame runs, in order:
-     *
-     * 1. `preUpdate(dt)` of every system, once;
-     * 2. `update(step)` of every system, then the `update` handler: once with
-     *    `dt`, or once per fixed step with `fixedStep`;
-     * 3. `postUpdate(dt)` of every system, once;
-     * 4. `preDraw(alpha)`, the `draw` handler, then `postDraw(alpha)`, for
-     *    overlays such as debug information or screen transitions.
-     *    `postDraw` runs whenever `preDraw` did, even if `draw` stopped the
-     *    loop, so a system can close what it opened (Camera2D's view).
-     *
-     * Within a phase, systems run by ascending `priority`, then in the order
-     * they were added. `this` is the system object. An exception thrown by a
-     * system stops the program, as one thrown by a handler.
-     */
-    interface System {
-        /** Unique name, for `removeSystem()` and `getSystems()`. */
-        name?: string;
-        /** Lower runs first. Integer; defaults to `0`. */
-        priority?: number;
-        /**
-         * `preUpdate` and `postUpdate` receive the real delta, ignoring
-         * `setTimeScale()`: for menus and transitions that keep moving while
-         * the game is paused. Defaults to `false`.
-         */
-        realTime?: boolean;
-        preUpdate?(dt: number): void;
-        /** Same cadence and argument as the `update` handler. */
-        update?(step: number): void;
-        postUpdate?(dt: number): void;
-        preDraw?(alpha: number): void;
-        postDraw?(alpha: number): void;
-    }
-
-    /** A registered system, as listed by `getSystems()`. */
-    interface SystemInfo {
-        name: string | undefined;
-        priority: number;
-        realTime: boolean;
-        /** Phases the system runs in, e.g. `["update", "postDraw"]`. */
-        phases: Array<"preUpdate" | "update" | "postUpdate" | "preDraw" | "postDraw">;
-        /** True for systems registered by native modules. */
-        native: boolean;
-    }
-
-    /**
-     * Registers a system and returns it. Its methods are read now: replacing
-     * them later has no effect until it is added again. A system added during
-     * a frame starts with the next phase. Throws when the object has no phase
-     * method, was already added, or its name is taken.
-     *
-     * @example
-     * ```js
-     * const flash = Loop.addSystem({
-     *     name: "flash",
-     *     priority: 100,
-     *     alpha: 128,              // 0x80 is opaque on the GS
-     *     postUpdate(dt) { this.alpha = Math.max(0, this.alpha - 256 * dt); },
-     *     postDraw() { Draw.rect(0, 0, 640, 448, Color.new(255, 255, 255, this.alpha)); },
-     * });
-     * ```
-     */
-    function addSystem<T extends System>(system: T): T;
-    /**
-     * Unregisters a system, given the object or its name. Returns whether it
-     * was registered. A system removed during a phase does not run again.
-     */
-    function removeSystem(system: System | string): boolean;
-    /** Registered systems, in run order. */
-    function getSystems(): SystemInfo[];
-}
-
-
-/* === Module: Random (random) === */
-/**
- * Seedable pseudo-random numbers (xoshiro128**, computed in C).
- *
- * Unlike `Math.random()`, a generator created with a seed always produces the
- * same sequence: a generated map, a roguelike run or a bug can be
- * reproduced. Integers, `float()`, `pick()`, `shuffle()` and `sample()` are
- * bit-exact on every platform; floats with bounds and gaussians may differ in
- * the last bits between the PS2 and a PC.
- *
- * The module functions (`Random.int()`, `Random.float()`...) use a generator
- * of the script (each script and worker has its own) seeded from the clock;
- * `Random.seed()` makes it reproducible too. Non-finite numeric arguments
- * (NaN, Infinity) throw a RangeError.
- *
- * Example:
- * ```js
- * const rng = new Random.Generator(1234);    // or a string: "level-3"
- * const die = rng.int(1, 6);
- * const loot = rng.pick(["sword", "shield", "potion"], [5, 3, 1]);
- * const team = rng.sample(players, 3);
- * rng.shuffle(deck);
- *
- * // Particles: one call instead of a loop of 500.
- * rng.fill(speeds, 40, 90);
- * rng.fillGaussian(spread, 0, 0.3);
- *
- * const saved = rng.state();                 // JSON-friendly: save it
- * rng.setState(saved);                       // and continue later
- * ```
- */
-declare namespace Random {
-    /** Seed: a number (integers map one-to-one) or a string (hashed). */
-    type Seed = number | string;
-
-    /** The four 32-bit words of a generator state, as returned by `state()`. */
-    type State = [number, number, number, number];
-
-    /** Typed arrays of numbers. */
-    type NumberArray = Int8Array | Uint8Array | Uint8ClampedArray |
-        Int16Array | Uint16Array | Int32Array | Uint32Array |
-        Float32Array | Float64Array;
-
-    /** Array or typed array accepted by `pick()`, `shuffle()` and `sample()`. */
-    type List<T> = T[] | NumberArray;
-
-    interface Source {
-        /** Restarts the sequence from `seed`; without one, from the clock. */
-        seed(seed?: Seed): void;
-        /** Integer in [min, max], both inclusive, without modulo bias. Bounds are int32. */
-        int(min: number, max: number): number;
-        /** Float in [0, 1). */
-        float(): number;
-        /** Float in [0, max). */
-        float(max: number): number;
-        /** Float in [min, max). */
-        float(min: number, max: number): number;
-        /** True with probability `p` (default 0.5). */
-        bool(p?: number): boolean;
-        /** Normally distributed number (default mean 0, standard deviation 1). */
-        gaussian(mean?: number, stddev?: number): number;
-        /** Angle in radians, in [0, 2 pi). */
-        angle(): number;
-        /**
-         * Random element, or `undefined` for an empty array. With `weights`
-         * (one per item), drawn with probability proportional to its weight.
-         */
-        pick<T>(items: T[], weights?: number[] | Float32Array): T | undefined;
-        pick(items: NumberArray, weights?: number[] | Float32Array): number | undefined;
-        /** `count` different elements in random order, as a new array. */
-        sample<T>(items: T[], count: number): T[];
-        sample(items: NumberArray, count: number): number[];
-        /** Shuffles in place (Fisher-Yates) and returns the same array. */
-        shuffle<A extends List<any>>(items: A): A;
-        /**
-         * Index drawn with probability proportional to its weight. Weights
-         * must be finite and non-negative, with at least one above zero.
-         */
-        weighted(weights: number[] | Float32Array): number;
-        /**
-         * Fills a typed array in one call and returns it. Float arrays get
-         * floats in [min, max) (default [0, 1); one bound is the max); integer
-         * arrays get integers in [min, max], by default the whole range of
-         * the type (random bytes for a Uint8Array).
-         */
-        fill<A extends NumberArray>(array: A, min?: number, max?: number): A;
-        /** Fills a float array with normally distributed numbers and returns it. */
-        fillGaussian<A extends Float32Array | Float64Array>(array: A,
-            mean?: number, stddev?: number): A;
-        /** Copy of the current state, for saving. */
-        state(): State;
-        /** Restores a state returned by `state()`. */
-        setState(state: State): void;
-    }
-
-    /** Independent generator. */
-    class Generator implements Source {
-        /** Seeded with `seed`, or from the clock without one. */
-        constructor(seed?: Seed);
-        seed(seed?: Seed): void;
-        int(min: number, max: number): number;
-        float(): number;
-        float(max: number): number;
-        float(min: number, max: number): number;
-        bool(p?: number): boolean;
-        gaussian(mean?: number, stddev?: number): number;
-        angle(): number;
-        pick<T>(items: T[], weights?: number[] | Float32Array): T | undefined;
-        pick(items: NumberArray, weights?: number[] | Float32Array): number | undefined;
-        sample<T>(items: T[], count: number): T[];
-        sample(items: NumberArray, count: number): number[];
-        shuffle<A extends List<any>>(items: A): A;
-        weighted(weights: number[] | Float32Array): number;
-        fill<A extends NumberArray>(array: A, min?: number, max?: number): A;
-        fillGaussian<A extends Float32Array | Float64Array>(array: A,
-            mean?: number, stddev?: number): A;
-        state(): State;
-        setState(state: State): void;
-        /** New generator at the same point of the sequence. */
-        clone(): Generator;
-    }
-
-    /** The script's generator: see `Source`. */
-    function seed(seed?: Seed): void;
-    function int(min: number, max: number): number;
-    function float(): number;
-    function float(max: number): number;
-    function float(min: number, max: number): number;
-    function bool(p?: number): boolean;
-    function gaussian(mean?: number, stddev?: number): number;
-    function angle(): number;
-    function pick<T>(items: T[], weights?: number[] | Float32Array): T | undefined;
-    function pick(items: NumberArray, weights?: number[] | Float32Array): number | undefined;
-    function sample<T>(items: T[], count: number): T[];
-    function sample(items: NumberArray, count: number): number[];
-    function shuffle<A extends List<any>>(items: A): A;
-    function weighted(weights: number[] | Float32Array): number;
-    function fill<A extends NumberArray>(array: A, min?: number, max?: number): A;
-    function fillGaussian<A extends Float32Array | Float64Array>(array: A,
-        mean?: number, stddev?: number): A;
-    function state(): State;
-    function setState(state: State): void;
-}
-
-
-/* === Module: Vector (vector) === */
-/**
- * PS2-aligned vector types.
- *
- * `Vector2`, `Vector3` and `Vector4` are separate JavaScript classes exposed
- * by the `Vector` module. Arithmetic methods return new vectors and do not
- * mutate their operands. `div()` rejects zero components.
- *
- * Example:
- * ```js
- * import * as Vector from 'Vector';
- * const direction = new Vector.Vector3(3, 4, 0);
- * console.log(direction.norm());
- * const right = direction.cross(new Vector.Vector3(0, 0, 1));
- * ```
- */
-declare class Vector2 {
-    /** Creates a two-component vector. */
-    constructor(x: number, y: number);
-    /** Horizontal component. */
-    x: number;
-    /** Vertical component. */
-    y: number;
-    /** Returns Euclidean length. */
-    norm(): number;
-    /** Returns the dot product. */
-    dot(value: Vector2): number;
-    /** Returns Euclidean distance to another vector. */
-    distance(value: Vector2): number;
-    /** Returns squared distance without taking a square root. */
-    distance2(value: Vector2): number;
-    /** Returns the component-wise sum. */
-    add(value: Vector2): Vector2;
-    /** Returns the component-wise difference. */
-    sub(value: Vector2): Vector2;
-    /** Returns the component-wise product. */
-    mul(value: Vector2): Vector2;
-    /** Returns the component-wise quotient; zero divisors throw. */
-    div(value: Vector2): Vector2;
-    /** Returns a readable component representation. */
-    toString(): string;
-}
-
-declare class Vector3 {
-    /** Creates a three-component vector. */
-    constructor(x: number, y: number, z: number);
-    /** X component. */
-    x: number;
-    /** Y component. */
-    y: number;
-    /** Z component. */
-    z: number;
-    /** Returns Euclidean length. */
-    norm(): number;
-    /** Returns the dot product. */
-    dot(value: Vector3): number;
-    /** Returns the 3D cross product. */
-    cross(value: Vector3): Vector3;
-    /** Returns Euclidean distance to another vector. */
-    distance(value: Vector3): number;
-    /** Returns squared distance without taking a square root. */
-    distance2(value: Vector3): number;
-    /** Returns the component-wise sum. */
-    add(value: Vector3): Vector3;
-    /** Returns the component-wise difference. */
-    sub(value: Vector3): Vector3;
-    /** Returns the component-wise product. */
-    mul(value: Vector3): Vector3;
-    /** Returns the component-wise quotient; zero divisors throw. */
-    div(value: Vector3): Vector3;
-    /** Returns a readable component representation. */
-    toString(): string;
-}
-
-declare class Vector4 {
-    /** Creates a homogeneous four-component vector. */
-    constructor(x: number, y: number, z: number, w: number);
-    /** X component. */
-    x: number;
-    /** Y component. */
-    y: number;
-    /** Z component. */
-    z: number;
-    /** Homogeneous component: commonly 1 for points and 0 for directions. */
-    w: number;
-    /** Returns four-dimensional Euclidean length. */
-    norm(): number;
-    /** Returns the four-component dot product. */
-    dot(value: Vector4): number;
-    /** Returns the cross product with homogeneous component cleared. */
-    cross(value: Vector4): Vector4;
-    /** Returns Euclidean distance to another vector. */
-    distance(value: Vector4): number;
-    /** Returns squared distance without taking a square root. */
-    distance2(value: Vector4): number;
-    /** Returns the component-wise sum. */
-    add(value: Vector4): Vector4;
-    /** Returns the component-wise difference. */
-    sub(value: Vector4): Vector4;
-    /** Returns the component-wise product. */
-    mul(value: Vector4): Vector4;
-    /** Returns the component-wise quotient; zero divisors throw. */
-    div(value: Vector4): Vector4;
-    /** Returns a readable component representation. */
-    toString(): string;
-}
-
-
-/* === Module: Matrix4 (matrix4) === */
-/**
- * Four-by-four transformation matrix using the PS2/AthenaEnv layout.
- *
- * Values are stored in column-major order. Translation components are at
- * indices 12, 13 and 14; index 15 is the homogeneous component.
- *
- * Example:
- * ```js
- * const transform = new Matrix4();
- * transform.set(12, 10).set(13, 20).set(14, 30);
- * const inverse = transform.clone().invert();
- * console.log(inverse.get(12), inverse.get(13), inverse.get(14));
- * ```
- */
-declare class Matrix4 {
-    /** Creates identity matrix, or initializes all 16 values when supplied. */
-    constructor();
-    constructor(
-        m00: number, m01: number, m02: number, m03: number,
-        m10: number, m11: number, m12: number, m13: number,
-        m20: number, m21: number, m22: number, m23: number,
-        m30: number, m31: number, m32: number, m33: number
-    );
-    /** Number of scalar components in the matrix. */
-    readonly length: 16;
-    /** Reads a scalar component at index 0..15. */
-    get(index: number): number;
-    /** Writes a scalar component at index 0..15 and returns this matrix. */
-    set(index: number, value: number): this;
-    /** Compares all 16 components exactly. */
-    equals(value: Matrix4): boolean;
-    /** Compares all components using an absolute epsilon tolerance. */
-    equalsEpsilon(value: Matrix4, epsilon: number): boolean;
-    /** Returns the 16 components as a new array. */
-    toArray(): number[];
-    /** Copies 16 values from an array-like object into this matrix. */
-    fromArray(values: ArrayLike<number>): this;
-    /** Returns an independent copy of this matrix. */
-    clone(): Matrix4;
-    /** Copies another matrix into this matrix. */
-    copy(value: Matrix4): this;
-    /** Returns this * value (column vectors); neither operand is mutated. */
-    multiply(value: Matrix4): Matrix4;
-    /** Replaces this matrix with identity. */
-    identity(): this;
-    /** Transposes this matrix in place. */
-    transpose(): this;
-    /** Inverts this matrix in place; throws for a singular matrix. */
-    invert(): this;
-    /** Returns a readable 16-value representation. */
-    toString(): string;
-}
-
-
-/* === Module: Camera3D (camera3d) === */
-/** Independent cameras; right-handed, facing -Z. Projection has reversed depth.
- * Matrix getters return an owned snapshot, or overwrite and return out. */
-declare namespace Camera3D {
-    interface Projection { fovYDegrees?: number; aspect?: number; near?: number; far?: number; }
-    class Camera {
-        /** Defaults: position [0,0,5], target [0,0,0], up [0,1,0], FOV 60, aspect 4/3, near .1, far 300. */
-        constructor(options?: Projection);
-        setProjection(options: Projection): this;
-        setPosition(x: number, y: number, z: number): this;
-        lookAt(x: number, y: number, z: number): this;
-        setUp(x: number, y: number, z: number): this;
-        getView(out?: Matrix4): Matrix4;
-        getProjection(out?: Matrix4): Matrix4;
-        getViewProjection(out?: Matrix4): Matrix4;
-        /** Idempotent; other operations reject a disposed camera. */
-        dispose(): void;
-    }
-}
-
-
-/* === Module: Lights (lights) === */
-/** Independent linear RGB lights. World directions point toward the source.
- * Point lights (4 slots) light per vertex and fade with the distance as
- * (1 - d^2 / range^2)^2, reaching 0 at range. */
-declare namespace Lights {
-    const MAX_DIRECTIONAL: 4;
-    const MAX_POINT: 4;
-    class Set {
-        /** Starts with black ambient and all four directional slots disabled. */
-        constructor();
-        /** Changes only when effective state changes; invalid setters are atomic. */
-        readonly revision: number;
-        setAmbient(r: number, g: number, b: number): this;
-        /** Slots 0..3; nonzero direction normalized in native code. RGB in [0,1]. */
-        setDirectional(slot: number, x: number, y: number, z: number, r: number, g: number, b: number): this;
-        disable(slot: number): this;
-        /** Slots 0..3: a world position, RGB in [0,1] and a range > 0. */
-        setPoint(slot: number, x: number, y: number, z: number, r: number, g: number, b: number, range: number): this;
-        disablePoint(slot: number): this;
-        /** Distance fog, applied by the GS to everything drawn with this set:
-         * full colour up to start, the fog colour from end on (view depth).
-         * 0 <= start < end, RGB in [0,1]. Ignored with 32-bit Z buffers. */
-        setFog(start: number, end: number, r: number, g: number, b: number): this;
-        disableFog(): this;
-        clear(): this;
-        dispose(): void;
-    }
-}
-
-
-/* === Module: Image (image) === */
-/**
- * Image loading, CPU pixel access and textured 2D drawing.
- *
- * `Image` accepts paths understood by the active PS2 filesystem driver,
- * including paths relative to the boot directory. A newly loaded image is
- * CPU-resident; call `lock()` when it must remain resident in VRAM.
- *
- * Pixel buffers use the image's current `bpp` and dimensions. For 32-bit
- * images, `pixels` contains four bytes per pixel. Palette data is used only
- * by indexed 4-bit and 8-bit formats.
- *
- * Some Images borrow a texture owned by another object, such as
- * `Video.frame`. Their storage cannot be replaced: setting `pixels`,
- * `palette`, `bpp`, `texWidth` or `texHeight` throws a TypeError and
- * `optimize()` returns false.
- *
- * @example
- * ```js
- * const logo = new Image('my_image.png');
- * if (!logo.ready()) throw new Error('image load failed');
- * logo.color = Color.new(255, 255, 255, 255);
- * logo.lock();
- * logo.draw(100, 80);
- * Screen.flip();
- * ```
- */
-
-/** Optional destination, source-rectangle and tint overrides for `draw()`. */
-type ImageDrawOptions = {
-    /** Destination width in pixels; defaults to `width`. */
-    width?: number;
-    /** Destination height in pixels; defaults to `height`. */
-    height?: number;
-    /** Source rectangle's left coordinate in texture pixels. */
-    startx?: number;
-    /** Source rectangle's top coordinate in texture pixels. */
-    starty?: number;
-    /** Source rectangle's right coordinate in texture pixels. */
-    endx?: number;
-    /** Source rectangle's bottom coordinate in texture pixels. */
-    endy?: number;
-    /** Rotation angle in radians. */
-    angle?: number;
-    /** Packed RGBA tint, normally created with `Color.new()`. */
-    color?: number;
-};
-
-/** Options of `drawList()`. */
-type ImageDrawListOptions = {
-    /** Offset added to every sprite; defaults to 0. */
-    x?: number;
-    y?: number;
-    /** First record to draw; defaults to 0. */
-    first?: number;
-    /** Records to draw; defaults to the rest of the buffer. */
-    count?: number;
-};
-
-/** Options controlling image creation and texture upload behavior. */
-type ImageOptions = {
-    /** Whether texture uploads use the deferred VIF1 path; defaults to true. */
-    delayed?: boolean;
-};
-
-declare class Image {
-    /** Loads an image from `path`, or creates an empty image when omitted. */
-    constructor(options?: ImageOptions);
-    constructor(path: string, options?: ImageOptions);
-    /** Linear size in bytes of the current pixel buffer. */
-    readonly size: number;
-    /** Whether texture uploads use the deferred VIF1 path. */
-    readonly delayed: boolean;
-    /** CPU pixel buffer; assigning it copies the supplied `ArrayBuffer`. */
-    pixels: ArrayBuffer;
-    /** CPU palette buffer for indexed images; required for indexed images. */
-    palette: ArrayBuffer;
-    /** Texture width in pixels (1..1024); changing it discards pixels and VRAM. */
-    texWidth: number;
-    /** Texture height in pixels (1..1024); changing it discards pixels and VRAM. */
-    texHeight: number;
-    /** Pixel storage format: 4, 8, 16, 24 or 32 bits per pixel; changing it discards storage. */
-    bpp: number;
-    /** Texture filter mode; must be GS_FILTER_NEAREST or GS_FILTER_LINEAR. */
-    filter: number;
-    /** Whether dimensions and a valid pixel buffer are available for drawing. */
-    renderable: boolean;
-    /** Destination draw width in pixels. */
-    width: number;
-    /** Destination draw height in pixels. */
-    height: number;
-    /** Source rectangle's left coordinate in texture pixels. */
-    startx: number;
-    /** Source rectangle's top coordinate in texture pixels. */
-    starty: number;
-    /** Source rectangle's right coordinate in texture pixels. */
-    endx: number;
-    /** Source rectangle's bottom coordinate in texture pixels. */
-    endy: number;
-    /** Rotation angle in radians used by `draw()`. */
-    angle: number;
-    /** Packed RGBA tint multiplied with sampled texture color. */
-    color: number;
-
-    /** True when dimensions, pixel data and indexed palette data are valid. */
-    ready(): boolean;
-    /** True while an ImageList request is waiting or being processed. */
-    loading(): boolean;
-    /** True when the most recent ImageList request failed. */
-    failed(): boolean;
-    /**
-     * Returns the loading state. `decoded` has CPU pixels; `upload_pending`
-     * has a queued VRAM upload; `ready` is resident in VRAM.
-     */
-    status(): "queued" | "loading" | "decoded" | "upload_pending" | "ready" | "failed" | "cancelled";
-    /** Returns structured load diagnostics, or undefined when no load failed. */
-    error(): ImageLoadError | undefined;
-    /** Queues a textured sprite at `(x, y)` for the current frame. */
-    draw(x: number, y: number, options?: ImageDrawOptions): void;
-    /**
-     * Queues many sprites of this image at once: the texture state is sent
-     * once per 128 sprites instead of once per sprite, which makes it several
-     * times cheaper than as many `draw()` calls. `sprites` uses the record
-     * layout of `TileMap.SpriteBuffer` (`TileMap.layout`: x, y, w, h, u1, v1,
-     * u2, v2 in pixels and texels, r, g, b, a with 128 as neutral), so one
-     * buffer serves both; the TileMap module is not required. Records with a
-     * zero width or height are skipped, and so are, under a Camera2D camera,
-     * records outside its viewport.
-     *
-     * @example
-     * ```js
-     * const sprites = new Float32Array(16 * count);        // 64-byte records
-     * const colors = new Uint32Array(sprites.buffer);
-     * // record i: sprites[16*i + 0..7] = x, y, w, h, u1, v1, u2, v2;
-     * //           colors[16*i + 8..11] = r, g, b, a
-     * image.drawList(sprites, { x: cameraX, y: cameraY });
-     * ```
-     */
-    drawList(sprites: ArrayBuffer | ArrayBufferView, options?: ImageDrawListOptions): void;
-    /** Uploads the image synchronously and pins its VRAM allocation. */
-    lock(): boolean;
-    /** Allows the texture manager to evict the image from VRAM. */
-    unlock(): boolean;
-    /** Returns whether the image is currently pinned in VRAM. */
-    locked(): boolean;
-    /** Converts an unlocked CT24 texture to CT16S and invalidates its VRAM copy. */
-    optimize(): boolean;
-    /** Releases the native image and its CPU/VRAM resources. */
-    free(): void;
-
-    /** Copies a rectangular VRAM region between two resident images. */
-    static copyVRAMBlock(
-        source: Image,
-        sourceX: number,
-        sourceY: number,
-        destination: Image,
-        destinationX: number,
-        destinationY: number
-    ): void;
-}
-
-/** Structured diagnostics for a failed image load. */
-interface ImageLoadError {
-    /** Path as it was requested. */
-    path: string;
-    code: "open_failed" | "unsupported_format" | "decode_failed" | "surface_failed" | "upload_failed";
-    /** `upload` is reported only for ImageList requests with an `upload` option. */
-    stage: "open" | "decode" | "surface" | "upload";
-    /** Human-readable description. */
-    message: string;
-}
-
-
-/* === Module: Quaternion (quaternion) === */
-/** Right-handed, normalized xyzw rotation. Angles are radians.
- * Mutating methods return this; operands are unchanged; dispose is idempotent. */
-declare namespace Quaternion {
-    class Quaternion {
-        constructor();
-        constructor(x: number, y: number, z: number, w: number);
-        setAxisAngle(x: number, y: number, z: number, radians: number): this;
-        /** Euler radians composed as Rz * Ry * Rx (x applied first). */
-        setEuler(x: number, y: number, z: number): this;
-        /** Sets this = this * other. */
-        multiply(other: Quaternion): this;
-        /** Shortest path toward other, t in [0,1]. */
-        slerp(other: Quaternion, t: number): this;
-        /** Independent snapshot. */
-        toArray(): [number, number, number, number];
-        dispose(): void;
-    }
-}
-
-
-/* === Module: Model3D (model3d) === */
-/** Immutable mesh streams. Geometry and material descriptors are copied;
- * instances/batches retain native resources, including textures. */
-declare namespace Model3D {
-    const MAX_VERTICES: number;
-    /** Joint indices must be below MAX_JOINTS (256); the VU1 path accepts 24 joints. */
-    const MAX_JOINTS: number;
-    /** At most MAX_TARGETS (8) morph targets per mesh. */
-    const MAX_TARGETS: number;
-    /** UV components must be finite with |u|,|v| <= UV_LIMIT (16): tiled UVs
-     * use repeat addressing within the GS texel precision. */
-    const UV_LIMIT: number;
-    const UNLIT: 0; const DIFFUSE: 1;
-    class Texture {
-        private constructor();
-        static readonly NEAREST: 0; static readonly LINEAR: 1;
-        /** Addressing per axis: CLAMP (to edge, the default), REPEAT on both
-         * axes, or REPEAT_U / REPEAT_V on one. */
-        static readonly CLAMP: 0; static readonly REPEAT_U: 1; static readonly REPEAT_V: 2; static readonly REPEAT: 3;
-        /** Copies 0xAABBGGRR pixels; alpha (0..255) matters only to alphaCutoff materials. Power-of-two sizes 1..512;
-         * no mipmaps. Honors subarray(); main thread only. */
-        static fromPixels(pixels: {width: number; height: number; pixels: Uint32Array; filter?: 0 | 1; wrap?: 0 | 1 | 2 | 3}): Texture;
-        /** Synchronous decoding. RGB/RGBA, 16-bit and 4/8-bit palette images
-         * (canonical 32-bit CPU copy). VRAM uses lossless T4/T8 for <=16/256
-         * distinct GS RGBA colors when texture+CLUT is smaller than CT32.
-         * Errors name the path and the reason. */
-        static load(path: string, filter?: 0 | 1, wrap?: 0 | 1 | 2 | 3): Texture;
-        readonly width: number; readonly height: number; readonly wrap: 0 | 1 | 2 | 3;
-        /** Makes the texture resident in VRAM now (one synchronous upload and
-         * GS wait), e.g. on a loading screen, instead of at the first draw.
-         * Throws when VRAM is full. */
-        upload(): this;
-        /** Existing meshes retain the texture. Final native release defers VRAM
-         * and pixel cleanup until the GS has finished reading them. */
-        dispose(): void;
-    }
-    interface Material {
-        /** Defaults to UNLIT. DIFFUSE uses world ambient/directional lights. */
-        shading?: 0 | 1;
-        /** Four finite linear RGBA values in [0,1], multiplied by vertex colors
-         * and stored as RGBA8. Defaults to white; alpha is used by alphaCutoff. */
-        baseColor?: Float32Array;
-        texture?: Texture;
-        /** Alpha mask (glTF alphaMode MASK): pixels whose alpha (texture
-         * alpha times vertex alpha) is below the cutoff, in [0,1], are
-         * discarded by the GS alpha test; the rest stay opaque. */
-        alphaCutoff?: number;
-    }
-    interface Geometry {
-        positions: Float32Array; colors?: Float32Array;
-        /** Triangle-list corners; copied into compact batches when storage is
-         * smaller. The original triangle order and vertexCount are preserved. */
-        indices?: Uint32Array;
-        /** One nonzero xyz normal per source vertex; normalized during copy.
-         * Missing DIFFUSE normals are generated per face, before expansion. */
-        normals?: Float32Array;
-        /** One finite uv pair per source vertex, |u|,|v| <= UV_LIMIT. Origin
-         * top-left; outside [0,1] the texture's wrap mode applies. */
-        texcoords?: Float32Array;
-        /** Four joint indices and four nonnegative finite weights per source
-         * vertex, supplied together. Each vertex needs a positive weight;
-         * weights are normalized during copy.
-         * Skin data needs a skin/joint palette to deform (e.g. a loaded glTF node). */
-        joints?: Uint16Array;
-        weights?: Float32Array;
-        /** Concatenated xyz position deltas, one complete source-vertex block
-         * per target (1..MAX_TARGETS). Scene3D.Node.setWeights controls the blend. */
-        targetPositions?: Float32Array;
-        /** Matching concatenated xyz normal deltas; requires base normals. */
-        targetNormals?: Float32Array;
-        material?: Material;
-    }
-    class Mesh {
-        private constructor();
-        /** xyz positions, optional normalized rgba, optional triangle-list indices. Honors subarray(). */
-        static fromGeometry(geometry: Geometry): Mesh;
-        /** Expanded triangle vertex count, at most MAX_VERTICES. */
-        readonly vertexCount: number;
-        /** Model-space AABB: minX, minY, minZ, maxX, maxY, maxZ. */
-        getBounds(): number[]; getBounds(out: Float32Array): Float32Array;
-        createInstance(): Instance;
-        /** Drops this handle; existing instances retain the native mesh. */
-        dispose(): void;
-    }
-    class Instance {
-        private constructor();
-        setPosition(x: number, y: number, z: number): this;
-        setScale(x: number, y: number, z: number): this;
-        /** Radians, XYZ local rotations composed Rz * Ry * Rx. */
-        setRotationEuler(x: number, y: number, z: number): this;
-        setRotationQuaternion(x: number, y: number, z: number, w: number): this;
-        /** Owned snapshot, or fills and returns out; never a borrowed matrix. */
-        getTransform(out?: Matrix4): Matrix4;
-        /** Local TRS as set (rotation normalized, xyzw): a new Array, or out
-         * filled and returned (no allocation per frame). */
-        getPosition(): number[]; getPosition(out: Float32Array): Float32Array;
-        getRotation(): number[]; getRotation(out: Float32Array): Float32Array;
-        getScale(): number[]; getScale(out: Float32Array): Float32Array;
-        dispose(): void;
-    }
-    /** Synchronous static OBJ/glTF/GLB loading; see docs/3D.md for the supported subset.
-     * Errors name the file and the exact unsupported feature. */
-    function load(path: string, material?: Material): Mesh;
-    /** Bulk setters, one call per frame instead of one per instance: values holds
-     * x, y, z for instances[i] at values[3i..3i+2] (it may be longer). Every
-     * value is checked finite before any instance changes. Returns the count. */
-    function setPositions(instances: Instance[], values: Float32Array): number;
-    /** Radians, composed Rz * Ry * Rx as Instance.setRotationEuler(). */
-    function setRotationsEuler(instances: Instance[], values: Float32Array): number;
-}
-
-
-/* === Module: Render3D (render3d) === */
-/** Native opaque unlit/diffuse and textured triangles with homogeneous clipping in C for
- * crossing objects; VU1 transforms and lights fully contained objects.
- * Draw never advances animation/physics. Enable Screen zbuffering. */
-declare namespace Render3D {
-    const CULL_NONE: 0; const CULL_BACK: 1; const CULL_FRONT: -1;
-    type CullMode = 0 | 1 | -1;
-    interface Stats {
-        submittedObjects: number; culledObjects: number;
-        /** Accepted objects drawn, even when clipping rejects all their triangles. */
-        drawPasses: number;
-        /** GS/VU1 passes emitted. Batch and Scene3D draws share one pass among
-         * consecutive objects with the same camera, program and texture. */
-        pipelinePasses: number;
-        /** Triangle list sent to VU1 after native clipping; not rasterized count. */
-        triangles: number; vuBatches: number;
-        /** Source triangles of objects retained by AABB culling. */
-        sourceTriangles: number;
-        /** Source triangles partially clipped and producing visible polygons. */
-        clippedTriangles: number;
-        /** Source triangles rejected by precise clipping. */
-        rejectedTriangles: number;
-        /** Stream payload sent inline or by DMA_REF, including chunk padding
-         * and skin joints/weights when applicable.
-         * Excludes tags, constants, texture/program uploads, GS state and 2D draws. */
-        geometryBytes: number;
-        /** Objects crossing the screen edges drawn by VU1 without clipping,
-         * inside the GS guard band (the scissor trims them). */
-        guardBandObjects: number;
-        /** Objects crossing the near plane clipped on VU1 (inside the guard
-         * band otherwise); their triangles count before clipping. */
-        nearClipObjects: number;
-        /** Meshes with morph targets blended on VU1. */
-        vuMorphObjects: number;
-    }
-    /** Lights are borrowed for this call. Omitted lights mean black ambient and
-     * no directional lights. UNLIT materials ignore lights. Scale 0
-     * draws nothing (counted as culled); other singular DIFFUSE normal
-     * transforms throw, naming the reason; drawing does not update lights or transforms.
-     * Pass `stats` to reuse an object every frame: its fields are assigned and
-     * it is returned, instead of allocating a new Stats per call. */
-    function draw<T extends object = Stats>(instance: Model3D.Instance, camera: Camera3D.Camera, cullMode?: CullMode,
-        lights?: Lights.Set, stats?: T): T & Stats;
-    /** Runs fn with one shared GS/VU1 pass: consecutive draws with the same
-     * camera, program and texture skip the barrier, program upload, camera
-     * constants and GS state (and unchanged lights). The pass closes when fn
-     * returns or throws; fn's result is returned. Inside fn, draw only 3D:
-     * no 2D drawing, flip or camera change. Groups do not nest. */
-    function group<R>(fn: () => R): R;
-    class Batch {
-        constructor();
-        readonly size: number;
-        /** Retains the native instance, independently of its JS handle. */
-        add(instance: Model3D.Instance): this;
-        clear(): this;
-        /** Optional `stats` is reused and returned, as in Render3D.draw(). */
-        draw<T extends object = Stats>(camera: Camera3D.Camera, cullMode?: CullMode, lights?: Lights.Set,
-            stats?: T): T & Stats;
-        dispose(): void;
-    }
-}
-
-
-/* === Module: Scene3D (scene3d) === */
-/** Native transform hierarchy. A Node is the scene-graph instance of a mesh;
- * world = parent world * local TRS. Setters only mark dirty flags: call
- * scene.update() (or attachLoop()) before draw and world queries, which throw
- * while the scene is stale instead of returning outdated data. */
-declare namespace Scene3D {
-    /** Releases reusable CPU skinning/morph buffers after draw returns, for
-     * a level transition or memory pressure. They grow again when needed. */
-    function trimScratch(): void;
-    /** Levels from the root, root included. Deeper hierarchies are rejected. */
-    const MAX_DEPTH: number;
-    /** Bulk setters, one call per frame instead of one per node: values holds
-     * x, y, z for nodes[i] at values[3i..3i+2] (it may be longer). Every
-     * value is checked finite before any node changes. Returns the count. */
-    function setPositions(nodes: Node[], values: Float32Array): number;
-    /** Radians, composed Rz * Ry * Rx as Node.setRotationEuler(). */
-    function setRotationsEuler(nodes: Node[], values: Float32Array): number;
-    /** 2D physics on 3D nodes: x, y and an angle about Z (radians) per node,
-     * the layout of Box2D's `world.readTransforms()`. Each node keeps its z.
-     * ```js
-     * world.readTransforms(bodies, transforms);
-     * Scene3D.setTransforms2D(crates, transforms);
-     * ``` */
-    function setTransforms2D(nodes: Node[], values: Float32Array): number;
-    interface UpdateStats { visitedNodes: number; worldUpdates: number; boundsUpdates: number; }
-    interface DrawStats extends Render3D.Stats {
-        /** Subtrees rejected by their world bounds; their meshes count as culled. */
-        culledSubtrees: number;
-        /** Meshes sent to Render3D, sorted by pipeline in traversal order. */
-        queuedObjects: number;
-    }
-    interface Bounds { min: [number, number, number]; max: [number, number, number]; }
-    class Node {
-        /** Retains the optional mesh natively, independently of its handle. */
-        constructor(mesh?: Model3D.Mesh);
-        /** Replaces the retained mesh; null removes it. */
-        setMesh(mesh: Model3D.Mesh | null): this;
-        readonly hasMesh: boolean;
-        setPosition(x: number, y: number, z: number): this;
-        setScale(x: number, y: number, z: number): this;
-        /** Radians, XYZ local rotations composed Rz * Ry * Rx. */
-        setRotationEuler(x: number, y: number, z: number): this;
-        setRotationQuaternion(x: number, y: number, z: number, w: number): this;
-        /** Native motion, integrated by scene.advance(dt) / attachLoop() without
-         * a JS call per frame. Units per second in the parent space. */
-        setVelocity(x: number, y: number, z: number): this;
-        /** Angular velocity in rad/s about the local axes: direction is the
-         * axis, length the speed. (0, 0, 0) stops the spin. */
-        setSpin(x: number, y: number, z: number): this;
-        /** Hidden nodes and descendants are not drawn nor included in bounds. */
-        visible: boolean;
-        /** Reparents child, keeping its local transform; the parent retains it.
-         * Throws RangeError for cycles, scene roots and MAX_DEPTH overflow. */
-        add(child: Node): this;
-        /** Removes this node from its parent; harmless without one. */
-        detach(): this;
-        /** The same live JS object for this native parent, or null. Wrapper
-         * identity (including subclass/properties) is preserved while live. */
-        getParent(): Node | null;
-        readonly childCount: number;
-        /** The same live JS object for the child at index. */
-        getChild(index: number): Node;
-        /** Always current. Owned snapshot, or fills and returns out. */
-        getLocalTransform(out?: Matrix4): Matrix4;
-        /** Transform of the last update. Throws while stale or outside a scene. */
-        getWorldTransform(out?: Matrix4): Matrix4;
-        /** World AABB of visible meshes in the subtree, or null when empty.
-         * Throws while stale or outside a scene. */
-        getWorldBounds(): Bounds | null;
-        /** Morph target weights (up to 8; missing ones become 0). A mesh with
-         * morph targets is blended in C at draw: base + sum(weight * delta). */
-        setWeights(weights: ArrayLike<number>): this;
-        /** One weight per morph target of the node's mesh (empty without). */
-        getWeights(): number[];
-        /** Invalidates this shared JS wrapper (all aliases). Parents/scenes
-         * retain the native node; later access can create another wrapper.
-         * The wrapper cache is weak and does not keep JS objects alive. */
-        dispose(): void;
-    }
-    class Scene {
-        constructor();
-        /** The same live JS object for the root node owned by the scene. */
-        readonly root: Node;
-        /** True when a node changed after the last update. */
-        readonly stale: boolean;
-        /** True while a Loop POST_UPDATE system updates this scene. */
-        readonly attached: boolean;
-        /** Integrates node motion (setVelocity/setSpin) for dt seconds and
-         * returns the moved node count. attachLoop() does it every frame with
-         * the Loop dt, before update(). */
-        advance(dt: number): number;
-        /** Recomputes dirty world transforms and subtree bounds. Optional
-         * `stats` is reused and returned instead of allocating a new object. */
-        update<T extends object = UpdateStats>(stats?: T): T & UpdateStats;
-        /** Culls subtrees, queues meshes and draws them through Render3D.
-         * Never updates the scene; throws while stale. Lights are borrowed. */
-        draw<T extends object = DrawStats>(camera: Camera3D.Camera, cullMode?: Render3D.CullMode, lights?: Lights.Set,
-            stats?: T): T & DrawStats;
-        /** Updates natively in Loop POST_UPDATE. Lower priority runs first. */
-        attachLoop(priority?: number): this;
-        detachLoop(): this;
-        /** Also detaches from the Loop; existing node handles stay valid. */
-        dispose(): void;
-    }
-}
-
-
 /* === Module: Screen (screen) === */
 /**
  * Display, frame synchronization, VRAM statistics and GS state controls.
@@ -1942,6 +1926,377 @@ declare namespace Screen {
 }
 
 
+/* === Module: System Core (system) === */
+/**
+ * PS2 system, filesystem, timing and hardware helpers.
+ *
+ * Paths use the PS2 device syntax such as `host:/`, `mass:/` or `mc0:/`.
+ * Return values from filesystem and device operations are native result codes;
+ * callers should check them before continuing.
+ *
+ * Example:
+ * ```js
+ * console.log(System.bootPath);
+ * for (const entry of System.listDir('host:/')) {
+ *     console.log(entry.dir ? '[DIR]' : entry.size, entry.name);
+ * }
+ * System.sleep(16);
+ * ```
+ */
+declare namespace System {
+    /** One directory entry returned by `listDir()`. */
+    interface DirectoryEntry {
+        /** File or directory name. */
+        name: string;
+        /** File size in bytes; directory sizes may be zero. */
+        size: number;
+        /** True when this entry is a directory. */
+        dir: boolean;
+    }
+
+    /** Memory counters returned by `getMemoryStats()`. */
+    interface MemoryStats {
+        /** Core/binary footprint in bytes. */
+        core: number;
+        /** Reserved native stack in bytes. */
+        nativeStack: number;
+        /** Current native allocations in bytes. */
+        allocs: number;
+        /** Highest observed current native allocation total in bytes since startup. */
+        allocsPeak: number;
+        /** Failed nonzero native allocation requests since startup. */
+        allocationFailures: number;
+        /** Total reported usage in bytes. */
+        used: number;
+        /** Total arena and mapped regions requested from the EE heap. */
+        heapReserved: number;
+        /** Bytes in allocator in-use chunks, including chunk overhead. */
+        heapAllocated: number;
+        /** Approximate allocator metadata/alignment overhead in bytes. */
+        heapOverhead: number;
+        /** Bytes in reusable free chunks. */
+        heapFree: number;
+        /** Number of free chunks in the allocator. */
+        heapFreeChunks: number;
+        /** Free bytes in the topmost releasable chunk. */
+        heapTopFree: number;
+        /** Free bytes outside the top chunk; a fragmentation indicator. */
+        heapNonTopFree: number;
+        /** Bytes allocated by the QuickJS runtime, measured like `allocs` and part of it. */
+        jsHeap: number;
+        /** Current QuickJS allocation ceiling in bytes. Initially half of free RAM at runtime start; may be recalculated with `setNativeMemoryHeadroom()`. */
+        jsLimit: number;
+        /** Live JavaScript objects. */
+        jsObjects: number;
+    }
+
+    /** EE CPU information returned by `getCPUInfo()`. */
+    interface CPUInfo {
+        /** EE CPU implementation identifier. */
+        implementation: number;
+        /** EE CPU revision identifier. */
+        revision: number;
+        /** Installed EE RAM size in bytes. */
+        RAMSize: number;
+        /** EE bus clock frequency. */
+        BUSClock: number;
+        /** EE CPU clock frequency. */
+        CPUClock: number;
+        /** PS2 machine type identifier. */
+        MachineType: number;
+    }
+
+    /** Recalculates the QuickJS heap ceiling using current free EE memory and
+     * leaves `bytes` available for native assets at this snapshot. Call at a
+     * phase boundary before loading assets. Native allocations made later can
+     * consume this headroom. At least 64 KiB must remain available for JS.
+     * Returns the resulting QuickJS allocation limit in bytes. */
+    function setNativeMemoryHeadroom(bytes: number): number;
+
+    /** Memory-card status returned by `getMCInfo()`. */
+    interface MemoryCardInfo {
+        /** Memory-card type identifier. */
+        type: number;
+        /** Free memory reported by the card driver. */
+        freemem: number;
+        /** Format/status flag reported by the card driver. */
+        format: number;
+    }
+
+    /** GS GPU information returned by `getGPUInfo()`. */
+    interface GPUInfo {
+        revision: number;
+        id: number;
+    }
+
+    /** One registered filesystem/device entry. */
+    interface DeviceInfo {
+        name: string;
+        desc: string;
+    }
+
+    /** The path from which the application booted (e.g. "mass0:/", "cdfs:/") */
+    const bootPath: string;
+    /** Legacy alias for bootPath. */
+    const boot_path: string;
+
+    /** Lists entries in a directory or path relative to `bootPath`. */
+    function listDir(path?: string): DirectoryEntry[];
+
+    /** Removes an empty directory and returns the underlying system result. */
+    function removeDirectory(path: string): number;
+
+    /** Copies a file and returns zero on success. */
+    function copyFile(source: string, destination: string): number;
+
+    /** Moves or renames a file and returns zero on success. */
+    function moveFile(source: string, destination: string): number;
+    /** Renames a file or directory and returns the native result code. */
+    function rename(source: string, destination: string): number;
+
+    /** Returns raw EE CPU clock ticks. */
+    function getTicks(): number;
+
+    /** Returns high-resolution elapsed time in milliseconds. */
+    function getMilliseconds(): number;
+
+    /** Suspends the current EE thread for the specified milliseconds. */
+    function sleep(ms: number): void;
+
+    /** Returns currently used EE RAM in bytes. */
+    function getUsedMemory(): number;
+
+    /** Returns remaining available EE RAM in bytes. */
+    function getFreeMemory(): number;
+
+    /** Yields briefly to the EE scheduler. */
+    function delay(): void;
+
+    /** Returns memory counters from the legacy System API. */
+    function getMemoryStats(): MemoryStats;
+
+    /** Returns basic EE CPU and memory information. */
+    function getCPUInfo(): CPUInfo;
+
+    /** Returns basic GS GPU information. */
+    function getGPUInfo(): GPUInfo;
+
+    /** Returns the console temperature in Celsius when supported. */
+    function getTemperature(): number | undefined;
+
+    /** Returns memory-card information for a controller port (0 or 1). */
+    function getMCInfo(port?: number): MemoryCardInfo;
+
+    /** Returns information about a mass-storage block device. */
+    function getBDMInfo(device: string): { name: string; index: number } | undefined;
+
+    /** Returns currently registered file-system devices. */
+    function devices(): DeviceInfo[];
+
+    /** Mounts a block device at a file-system mount point. */
+    function mount(mountpoint: string, blockdev: string, mode?: number): number;
+
+    /** Unmounts a file-system device. */
+    function umount(device: string): number;
+
+    /** Loads an ELF using the legacy Athena loader. */
+    function loadELF(path: string, args?: string[]): number;
+
+    /** Enables or disables the legacy dark-mode flag. */
+    function setDarkMode(enabled: boolean): void;
+
+    /** Forces a QuickJS garbage-collection cycle. */
+    function gc(): void;
+
+    /** Exit application to the PS2 browser/OSDSYS */
+    function exit(): void;
+
+    /** Alias for exiting to the PS2 browser/OSDSYS. */
+    function exitToBrowser(): void;
+}
+
+
+/* === Module: Debug (debug) === */
+/**
+ * On-screen diagnostics, for the console where there is no terminal.
+ *
+ * Everything is drawn after the game's draw by a Loop system that exists only
+ * while something is on. Games with their own loop call `Debug.frame(dt)`
+ * after drawing. The overlay text refreshes 4 times per second and is laid
+ * out once per refresh; the frame-time graph, the console tail and the
+ * rects, lines and circles are computed and drawn in C, so a hitbox per
+ * entity per frame allocates nothing. The overlay shows its own cost
+ * ("debug x ms").
+ *
+ * It never takes the game down: arguments are checked at the call (a bad
+ * color throws there), and an error while drawing turns the module off and
+ * is logged once. Shapes are capped at 2048 (texts too); the oldest go and
+ * the overlay counts them.
+ *
+ * The panels stay inside the title-safe area (5% of each edge), which CRT
+ * TVs do not cut, and use the built-in font at 16 px.
+ *
+ * Not in the default build: `node tools/modules.js configure --modules=debug,...`
+ *
+ * Example:
+ * ```js
+ * Debug.overlay(true);                          // FPS, CPU, RAM, JS heap, VRAM, graph
+ * Debug.console(true, { lines: 6 });            // last lines of console.log
+ * Debug.watch("player", () => `${player.x | 0},${player.y | 0} ${player.state}`);
+ * Debug.toggleWith(Gamepad.L3 | Gamepad.R3);    // show / hide everything
+ *
+ * // In update(): hitboxes for a second, in world coordinates.
+ * Debug.rect(enemy.x, enemy.y, 16, 16, Color.new(255, 0, 0), { seconds: 1, space: "world" });
+ * Debug.text(enemy.x, enemy.y - 10, "hit!", { seconds: 0.5, space: "world" });
+ * ```
+ */
+declare namespace Debug {
+    interface ShapeOptions {
+        /** How long it stays, in real seconds (default 0: this frame only). */
+        seconds?: number;
+        /** "screen" (default) or "world", through `setView()`. */
+        space?: "screen" | "world";
+        /** Filled instead of an outline (rect and circle). */
+        filled?: boolean;
+    }
+
+    interface TextOptions extends ShapeOptions {
+        /** Text color (default white). */
+        color?: Color.Value;
+    }
+
+    interface ConsoleOptions {
+        /** Screen lines shown, 1 to 40 (default 8). */
+        lines?: number;
+    }
+
+    interface View {
+        /** World point at the top-left corner of the screen (default 0). */
+        x?: number;
+        y?: number;
+        /** Screen pixels per world unit (default 1). */
+        scale?: number;
+    }
+
+    interface Config {
+        /**
+         * Frame budget in milliseconds for the graph colors. 0 (default)
+         * derives it from the video mode (60 Hz, or 50 Hz for PAL and 576p)
+         * and `vsyncInterval`.
+         */
+        budgetMs?: number;
+        /** The `vsyncInterval` given to Loop.run(), 1 to 4 (default 1; 2 for 30 fps). */
+        vsyncInterval?: number;
+        /**
+         * Distance from the screen edges in pixels, one number or { x, y }.
+         * null (default) is the title-safe area, 5% of each side.
+         */
+        margin?: number | { x: number; y: number } | null;
+        /** Font of every text (default the built-in font at 16 px). */
+        font?: Font;
+    }
+
+    /** Figures of the frame-time graph. */
+    interface FrameStats {
+        samples: number;
+        frameAvg: number;
+        frameMax: number;
+        cpuAvg: number;
+        cpuMax: number;
+    }
+
+    /**
+     * Shows or hides the stats panel: FPS, CPU and frame time (average and
+     * peak of the last 60 frames) and the frame budget, RAM, free VRAM, the
+     * module's own cost, the watches, and a frame-time graph: green under 75% of the budget, yellow up to it, red
+     * over it, magenta for a dropped frame. Returns whether it is on.
+     * Measured on the PS2: about 1.1 ms per frame with the console (0.95 ms
+     * compact; the graph is about 0.45 ms of it). The overlay shows its own
+     * cost as "debug x ms".
+     */
+    function overlay(on?: boolean, options?: OverlayOptions): boolean;
+
+    interface OverlayOptions {
+        /** Draw the frame-time graph (default true). */
+        graph?: boolean;
+        /** Only the FPS line and the watches (default false). */
+        compact?: boolean;
+        /**
+         * Adds the JavaScript heap size and object count (default false).
+         * Reading them walks the whole heap: 6.7 ms in one frame on the PS2,
+         * so it happens every 5 seconds, and is off by default because a
+         * busy game would drop a frame each time.
+         */
+        heap?: boolean;
+    }
+
+    /**
+     * Shows or hides the last lines the script printed (console.log, print,
+     * errors), wrapped to the screen; lines that look like errors are red.
+     * Returns whether it is on.
+     */
+    function console(on?: boolean, options?: ConsoleOptions): boolean;
+
+    /**
+     * Adds `name: read()` to the overlay, evaluated 4 times per second;
+     * errors show inline and long values are cut at 48 characters.
+     */
+    function watch(name: string, read: () => unknown): void;
+    /** Removes a watch; returns whether it existed. */
+    function unwatch(name: string): boolean;
+
+    /** Rectangle outline (or filled), for this frame or `seconds`. Default color red. */
+    function rect(x: number, y: number, width: number, height: number,
+        color?: Color.Value, options?: ShapeOptions): void;
+    function line(x1: number, y1: number, x2: number, y2: number,
+        color?: Color.Value, options?: ShapeOptions): void;
+    function circle(x: number, y: number, radius: number,
+        color?: Color.Value, options?: ShapeOptions): void;
+    /**
+     * Many rectangles in one call, from a Float32Array of x, y, width,
+     * height groups (length a multiple of 4), checked and queued in C: for
+     * the hitboxes of many entities, far cheaper than one `rect()` each.
+     * Groups with a value that is not finite are skipped. Returns how many
+     * were queued.
+     */
+    function rects(values: Float32Array, color?: Color.Value, options?: ShapeOptions): number;
+    /** Many lines in one call, from x1, y1, x2, y2 groups; see `rects()`. */
+    function lines(values: Float32Array, color?: Color.Value, options?: ShapeOptions): number;
+    function text(x: number, y: number, text: unknown, options?: TextOptions): void;
+    /** Removes every shape and text still on screen. */
+    function clear(): void;
+
+    /**
+     * Shows and hides everything when the `buttons` combination is pressed
+     * on the controller of `port` (0 or 1). The pad is read without
+     * Gamepad.update(), so the game's justPressed() is unaffected. `null`
+     * removes the shortcut.
+     */
+    function toggleWith(buttons: number | null, port?: 0 | 1): void;
+    /** Shows or hides everything, like the shortcut; returns whether shown. */
+    function show(on?: boolean): boolean;
+
+    /**
+     * World space of shapes drawn with `space: "world"`: screen = (world - x/y) * scale.
+     * Used without a camera: while `Camera2D.getCurrent()` has one, world
+     * shapes and texts follow it (zoom and rotation included) instead.
+     */
+    function setView(view: View): void;
+    function configure(options: Config): void;
+
+    /**
+     * For games that do not use Loop.run(): call after drawing, before
+     * Screen.flip(). `dt` is the frame time in seconds; `cpuMs` (optional)
+     * feeds the graph. Not needed with Loop.run(): there it does nothing and
+     * warns once.
+     */
+    function frame(dt: number, cpuMs?: number): void;
+
+    /** Figures of the graph over the last `frames` frames (default 60). */
+    function frameStats(frames?: number): FrameStats;
+}
+
+
 /* === Module: Mutex (mutex) === */
 /**
  * Native EE mutex primitives.
@@ -1979,6 +2334,543 @@ declare namespace Mutex {
 
     /** Releases the native mutex. Do not use `mutex` afterwards. */
     function destroy(mutex: Handle): void;
+}
+
+
+/* === Module: Memory Card (memcard) === */
+/**
+ * Memory Card access on mc0: (port 0) and mc1: (port 1).
+ *
+ * Paths always name the card: `"mc0:/SAVEDATA/slot1.dat"`. Names are 1-31
+ * bytes without `*` or `?`; `.` and `..` are resolved. Directories must
+ * exist unless `createDirs` is used.
+ *
+ * Every call that talks to the card blocks the calling script thread (not
+ * the others) until the card answers; saves take tens to hundreds of
+ * milliseconds. In a frame loop use the `*Async` variants, which run on a
+ * worker thread: poll them once per frame, or simply `await` them.
+ *
+ * Failures throw an `Error` with a stable `error.code` (see `ErrorCode`) and,
+ * for a path, `error.path`.
+ *
+ * Example:
+ * ```js
+ * const card = MemoryCard.getInfo(0);
+ * if (!card.connected) throw new Error("Insert a memory card in slot 1");
+ *
+ * // Save: the directory is created on the first save.
+ * MemoryCard.writeJSON("mc0:/MYGAME/save.json", state, { atomic: true });
+ * MemoryCard.writeFile("mc0:/MYGAME/icon.sys",
+ *     MemoryCard.createIconSys({ title: "My Game\nSlot 1", icon: "icon.ico" }));
+ *
+ * // Load.
+ * if (MemoryCard.exists("mc0:/MYGAME/save.json"))
+ *     state = MemoryCard.readJSON("mc0:/MYGAME/save.json");
+ *
+ * // Without freezing the frame loop.
+ * const job = MemoryCard.writeJSONAsync("mc0:/MYGAME/save.json", state);
+ * Loop.run(() => {
+ *     const s = MemoryCard.poll(job);
+ *     if (s.state === "running") drawSpinner(s.bytesDone / s.bytesTotal);
+ * });
+ * // ...or, in an async function:
+ * state = await MemoryCard.readJSONAsync("mc0:/MYGAME/save.json");
+ * ```
+ *
+ * Limits of the driver:
+ * - three files can be open at once for both cards together, `fopen("mc0:...")` included;
+ * - `rename` only renames in place;
+ * - each directory holds a fixed number of entries (`getFreeEntries`);
+ * - raw page/block access is not available with the embedded XMCSERV driver.
+ */
+declare namespace MemoryCard {
+    type Port = 0 | 1;
+
+    /** `"mc0:/DIR/NAME"` or `"mc1:/DIR/NAME"`; `"mc0:/"` is the root. */
+    type Path = string;
+
+    type CardType = 'none' | 'ps1' | 'ps2' | 'pocketstation';
+
+    type ErrorCode =
+        | 'INVALID_ARGUMENT'
+        /** The mcserv driver is not running (it is started on demand when possible). */
+        | 'NOT_READY'
+        /** No card in the slot, or it failed detection. */
+        | 'NO_CARD'
+        | 'UNFORMATTED'
+        /** The card was swapped: open files on it are gone. */
+        | 'CARD_CHANGED'
+        | 'FULL'
+        | 'NOT_FOUND'
+        | 'EXISTS'
+        /** Writing a read-only file (removing it is allowed), or a file already open for writing. */
+        | 'ACCESS_DENIED'
+        | 'NOT_EMPTY'
+        /** Every one of the three driver file handles is in use. */
+        | 'TOO_MANY_OPEN'
+        | 'IS_DIRECTORY'
+        | 'NOT_DIRECTORY'
+        /** PS1/PocketStation cards for most operations. */
+        | 'UNSUPPORTED'
+        | 'NO_MEMORY'
+        | 'IO'
+        /** The file was closed, or lost to an IOP reset. */
+        | 'CLOSED'
+        | 'CANCELLED'
+        /** The file is in use by another script thread. */
+        | 'BUSY';
+
+    interface Error extends globalThis.Error {
+        code: ErrorCode;
+        /** The card path involved, e.g. `"mc0:/MYGAME/save.json"`. */
+        path?: Path;
+    }
+
+    interface Info {
+        port: Port;
+        type: CardType;
+        /** `type !== 'none'`. */
+        connected: boolean;
+        formatted: boolean;
+        freeClusters: number;
+        /** `freeClusters * CLUSTER_SIZE`. */
+        freeBytes: number;
+        /**
+         * A card was inserted since the previous `getInfo()` of this port
+         * (also true on the first call after boot).
+         */
+        changed: boolean;
+    }
+
+    interface Entry {
+        name: string;
+        /** Full path, e.g. `"mc0:/MYGAME/save.json"` (absent for the root). */
+        path?: Path;
+        /** Bytes; 0 for directories. */
+        size: number;
+        directory: boolean;
+        /** `ATTR_*` bits. */
+        attributes: number;
+        /** Milliseconds since 1970 (UTC), for `new Date(entry.created)`. 0 when unknown. */
+        created: number;
+        modified: number;
+    }
+
+    /** Binary data; strings are written as UTF-8. */
+    type Data = string | ArrayBuffer | ArrayBufferView;
+
+    interface WriteOptions {
+        /** Create the missing parent directories (only checked when they are missing: no extra cost). Default `true`. */
+        createDirs?: boolean;
+        /**
+         * Write `"<name>~"` first and swap it in only when complete, so a
+         * failure or a pulled card keeps the previous file. Needs room for
+         * both copies meanwhile. Default `false`: a failed write removes the
+         * partial file, and the previous content is lost.
+         */
+        atomic?: boolean;
+    }
+
+    /* --- Card ----------------------------------------------------------- */
+
+    /** Card status. Never throws for an empty slot: `connected` is false. */
+    function getInfo(port?: Port): Info;
+
+    /** Erases the whole card and creates an empty file system. Takes several seconds. */
+    function format(port: Port): void;
+
+    /** Erases the file system; the card reads as unformatted afterwards. */
+    function unformat(port: Port): void;
+
+    /* --- Entries -------------------------------------------------------- */
+
+    /** Throws `NOT_FOUND` when the entry does not exist. */
+    function stat(path: Path): Entry;
+
+    /** False only for a missing entry; a missing card still throws. */
+    function exists(path: Path): boolean;
+
+    /** Directory contents, without `.` and `..`. */
+    function list(path: Path): Entry[];
+
+    /**
+     * Creates a directory. Returns `false` when `recursive` found it already
+     * there; without `recursive` an existing directory throws `EXISTS`.
+     */
+    function mkdir(path: Path, options?: { recursive?: boolean }): boolean;
+
+    /** Removes a file or an empty directory; `recursive` removes a whole tree. */
+    function remove(path: Path, options?: { recursive?: boolean }): void;
+
+    /** Renames in place: `newName` is a name, not a path. */
+    function rename(path: Path, newName: string): void;
+
+    /**
+     * Changes attributes (only `ATTR_READABLE`, `ATTR_WRITABLE`,
+     * `ATTR_EXECUTABLE`, `ATTR_PROTECTED`, `ATTR_HIDDEN`) and dates.
+     */
+    function setInfo(path: Path, info: {
+        attributes?: number;
+        created?: Date | number;
+        modified?: Date | number;
+    }): void;
+
+    /** Directory entries still free in `path` (each directory holds a fixed number). */
+    function getFreeEntries(path: Path): number;
+
+    /* --- Files ---------------------------------------------------------- */
+
+    function readFile(path: Path): ArrayBuffer;
+
+    /** Reads a file as UTF-8 text. */
+    function readText(path: Path): string;
+
+    /**
+     * Reads and parses a JSON file. A parse failure throws the `SyntaxError`
+     * of `JSON.parse`, with `error.path` set.
+     */
+    function readJSON<T = any>(path: Path): T;
+
+    /** Creates or replaces a file. Returns the bytes written. */
+    function writeFile(path: Path, data: Data, options?: WriteOptions): number;
+
+    /** Writes `JSON.stringify(value)`; `indent` (0-10 spaces) pretty-prints it. Returns the bytes written. */
+    function writeJSON(path: Path, value: unknown, options?: WriteOptions & { indent?: number }): number;
+
+    /**
+     * Opens a file for streaming. Close it when done: the driver has three
+     * handles for every card together (a collected handle closes itself).
+     * Modes: `"r"` read, `"r+"` read/write an existing file, `"w"` create or
+     * replace and write, `"w+"` the same and read, `"a"` write starting at the
+     * end (created when missing), `"a+"` the same and read.
+     */
+    function open(path: Path, mode?: 'r' | 'r+' | 'w' | 'w+' | 'a' | 'a+'): File;
+
+    interface File {
+        readonly __brand: 'MemoryCardFile';
+        readonly closed: boolean;
+        /** Bytes in the file, kept by the handle (reading it sends nothing to the card). */
+        readonly size: number;
+        /** Up to `size` bytes (default: the rest of the file); shorter at the end of the file. */
+        read(size?: number): ArrayBuffer;
+        /** Returns the bytes written. */
+        write(data: Data): number;
+        /** Returns the new position. */
+        seek(offset: number, whence?: 'set' | 'cur' | 'end'): number;
+        tell(): number;
+        flush(): void;
+        /**
+         * Closing twice does nothing. A file lost with its card (other
+         * calls throw `CARD_CHANGED`) closes without an error.
+         */
+        close(): void;
+    }
+
+    /* --- icon.sys ------------------------------------------------------- */
+
+    interface IconSysOptions {
+        /** Up to 33 printable ASCII characters; one `"\n"` splits the two lines. */
+        title: string;
+        /** Icon file (in the same save directory) shown in the list. */
+        icon: string;
+        /** Icon while copying. Default: `icon`. */
+        copyIcon?: string;
+        /** Icon while deleting. Default: `icon`. */
+        deleteIcon?: string;
+        /** Background opacity, 0-128. Default 96. */
+        backgroundAlpha?: number;
+        /** RGB 0-255 of the corners: top-left, top-right, bottom-left, bottom-right. */
+        background?: [number[], number[], number[], number[]];
+        /** Three light directions, components -1..1. */
+        lightDirections?: [number[], number[], number[]];
+        /** Three light colors, RGB 0..1. */
+        lightColors?: [number[], number[], number[]];
+        /** Ambient light, RGB 0..1. */
+        ambient?: number[];
+    }
+
+    /**
+     * Builds the `icon.sys` that makes a save directory show up in the PS2
+     * browser (the title is converted to Shift-JIS). Write it next to the
+     * icon files.
+     */
+    function createIconSys(options: IconSysOptions): ArrayBuffer;
+
+    /* --- Background jobs ------------------------------------------------ */
+
+    /**
+     * Work running on a worker thread. `poll()` it (e.g. once per frame),
+     * `wait()` for it, or `await` it: a job is a thenable that resolves with
+     * the result or rejects with the `MemoryCard.Error`. Dropping the handle
+     * cancels the job.
+     */
+    interface Job<T> extends AthenaJob<T, JobStatus<T>> {
+        readonly __brand: 'MemoryCardJob';
+    }
+
+    type JobState = 'running' | 'done' | 'failed' | 'cancelled';
+
+    interface JobStatus<T> {
+        state: JobState;
+        bytesDone: number;
+        /** 0 until known. Remove jobs count entries in `bytesDone` instead. */
+        bytesTotal: number;
+        /** When `state` is `'done'`. The same value on every later poll. */
+        result?: T;
+        /** When `state` is `'failed'` or `'cancelled'`. */
+        error?: Error;
+    }
+
+    function readFileAsync(path: Path): Job<ArrayBuffer>;
+    /** Resolves with the file as UTF-8 text. */
+    function readTextAsync(path: Path): Job<string>;
+    /** Resolves with the parsed JSON; a parse error fails the job with the `SyntaxError`. */
+    function readJSONAsync<T = any>(path: Path): Job<T>;
+    /** Resolves with the bytes written. The data is copied when the job starts. */
+    function writeFileAsync(path: Path, data: Data, options?: WriteOptions): Job<number>;
+    /** `writeJSON` on a worker: `value` is stringified when the call is made. */
+    function writeJSONAsync(path: Path, value: unknown, options?: WriteOptions & { indent?: number }): Job<number>;
+    function removeAsync(path: Path, options?: { recursive?: boolean }): Job<void>;
+    /** Cannot be cancelled once started. */
+    function formatAsync(port: Port): Job<void>;
+
+    /** Returns the job's progress without blocking. */
+    function poll<T>(job: Job<T>): JobStatus<T>;
+
+    /**
+     * Blocks until the job settles or `timeoutMs` passes (default: no
+     * limit), letting other threads run, then returns `poll(job)`.
+     */
+    function wait<T>(job: Job<T>, timeoutMs?: number): JobStatus<T>;
+
+    /** Stops the job before its next block; a write removes what it wrote. */
+    function cancel(job: Job<unknown>): void;
+
+    /* --- Constants ------------------------------------------------------ */
+
+    const ATTR_READABLE: number;
+    const ATTR_WRITABLE: number;
+    const ATTR_EXECUTABLE: number;
+    /** Copy-protected in the browser. */
+    const ATTR_PROTECTED: number;
+    const ATTR_FILE: number;
+    const ATTR_DIRECTORY: number;
+    /** The file may not have been written completely. */
+    const ATTR_CLOSED: number;
+    const ATTR_PDA_EXEC: number;
+    const ATTR_PS1: number;
+    /** Hidden from games (the browser still shows it). */
+    const ATTR_HIDDEN: number;
+    const ATTR_EXISTS: number;
+    /** Longest entry name, in bytes. */
+    const NAME_MAX: number;
+    /** Driver file handles for every card together. */
+    const MAX_OPEN_FILES: number;
+    /** Bytes per cluster. */
+    const CLUSTER_SIZE: number;
+}
+
+
+/* === Module: Particles3D (particles3d) === */
+/** Native 3D particles drawn as camera-facing quads (billboards) by VU1:
+ * emission and integration in C, depth tested against the 3D scene without
+ * writing depth, so transparent particles do not hide each other. Draw after
+ * the opaque scene. Screen zbuffering is required. Emitters advance in one
+ * Loop system (attachLoop(), POST_UPDATE) or with update(dt). */
+declare namespace Particles3D {
+    const MAX_PARTICLES: number;
+    const LOOP_PRIORITY: number;
+    /** A number, or [min, max] picked per particle ([start, end] for size). */
+    type Range = number | [number, number];
+    type Vector3 = [number, number, number];
+    interface Options {
+        /** Pool size, 1..MAX_PARTICLES; default 256. */
+        capacity?: number;
+        /** Particles per second while active; default 0 (bursts only). */
+        rate?: number;
+        /** Seconds; default 1. */
+        life?: Range;
+        speed?: Range;
+        /** Cone axis (normalized); default [0, 1, 0]. */
+        direction?: Vector3;
+        /** Cone half angle in radians, 0..PI; default 0. */
+        spread?: number;
+        gravity?: Vector3;
+        /** velocity *= 1 / (1 + drag * dt). */
+        drag?: number;
+        /** Quad side in world units, [start, end] over life; default 0.5. */
+        size?: Range;
+        /** Color.new() value or [start, end]; alpha 0..128. */
+        color?: number | [number, number];
+        /** Spawn box around the position. */
+        area?: Vector3;
+        /** [u1, v1, u2, v2] in texels; default the whole image. */
+        rect?: [number, number, number, number];
+        seed?: number;
+    }
+    class Emitter {
+        constructor(image: Image, options?: Options);
+        configure(options: Options): this;
+        setPosition(x: number, y: number, z: number): this;
+        emit(count: number): number;
+        clear(): this;
+        update(dt: number): this;
+        /** Draws what camera sees (near/far tested on the EE) and returns how
+         * many particles were sent. Throws without a z-buffer. */
+        draw(camera: Camera3D.Camera): number;
+        readonly count: number;
+        active: boolean;
+        dispose(): void;
+    }
+    function update(dt: number): void;
+    function attachLoop(priority?: number): void;
+    function detachLoop(): boolean;
+    function isAttached(): boolean;
+}
+
+
+/* === Module: Random (random) === */
+/**
+ * Seedable pseudo-random numbers (xoshiro128**, computed in C).
+ *
+ * Unlike `Math.random()`, a generator created with a seed always produces the
+ * same sequence: a generated map, a roguelike run or a bug can be
+ * reproduced. Integers, `float()`, `pick()`, `shuffle()` and `sample()` are
+ * bit-exact on every platform; floats with bounds and gaussians may differ in
+ * the last bits between the PS2 and a PC.
+ *
+ * The module functions (`Random.int()`, `Random.float()`...) use a generator
+ * of the script (each script and worker has its own) seeded from the clock;
+ * `Random.seed()` makes it reproducible too. Non-finite numeric arguments
+ * (NaN, Infinity) throw a RangeError.
+ *
+ * Example:
+ * ```js
+ * const rng = new Random.Generator(1234);    // or a string: "level-3"
+ * const die = rng.int(1, 6);
+ * const loot = rng.pick(["sword", "shield", "potion"], [5, 3, 1]);
+ * const team = rng.sample(players, 3);
+ * rng.shuffle(deck);
+ *
+ * // Particles: one call instead of a loop of 500.
+ * rng.fill(speeds, 40, 90);
+ * rng.fillGaussian(spread, 0, 0.3);
+ *
+ * const saved = rng.state();                 // JSON-friendly: save it
+ * rng.setState(saved);                       // and continue later
+ * ```
+ */
+declare namespace Random {
+    /** Seed: a number (integers map one-to-one) or a string (hashed). */
+    type Seed = number | string;
+
+    /** The four 32-bit words of a generator state, as returned by `state()`. */
+    type State = [number, number, number, number];
+
+    /** Typed arrays of numbers. */
+    type NumberArray = Int8Array | Uint8Array | Uint8ClampedArray |
+        Int16Array | Uint16Array | Int32Array | Uint32Array |
+        Float32Array | Float64Array;
+
+    /** Array or typed array accepted by `pick()`, `shuffle()` and `sample()`. */
+    type List<T> = T[] | NumberArray;
+
+    interface Source {
+        /** Restarts the sequence from `seed`; without one, from the clock. */
+        seed(seed?: Seed): void;
+        /** Integer in [min, max], both inclusive, without modulo bias. Bounds are int32. */
+        int(min: number, max: number): number;
+        /** Float in [0, 1). */
+        float(): number;
+        /** Float in [0, max). */
+        float(max: number): number;
+        /** Float in [min, max). */
+        float(min: number, max: number): number;
+        /** True with probability `p` (default 0.5). */
+        bool(p?: number): boolean;
+        /** Normally distributed number (default mean 0, standard deviation 1). */
+        gaussian(mean?: number, stddev?: number): number;
+        /** Angle in radians, in [0, 2 pi). */
+        angle(): number;
+        /**
+         * Random element, or `undefined` for an empty array. With `weights`
+         * (one per item), drawn with probability proportional to its weight.
+         */
+        pick<T>(items: T[], weights?: number[] | Float32Array): T | undefined;
+        pick(items: NumberArray, weights?: number[] | Float32Array): number | undefined;
+        /** `count` different elements in random order, as a new array. */
+        sample<T>(items: T[], count: number): T[];
+        sample(items: NumberArray, count: number): number[];
+        /** Shuffles in place (Fisher-Yates) and returns the same array. */
+        shuffle<A extends List<any>>(items: A): A;
+        /**
+         * Index drawn with probability proportional to its weight. Weights
+         * must be finite and non-negative, with at least one above zero.
+         */
+        weighted(weights: number[] | Float32Array): number;
+        /**
+         * Fills a typed array in one call and returns it. Float arrays get
+         * floats in [min, max) (default [0, 1); one bound is the max); integer
+         * arrays get integers in [min, max], by default the whole range of
+         * the type (random bytes for a Uint8Array).
+         */
+        fill<A extends NumberArray>(array: A, min?: number, max?: number): A;
+        /** Fills a float array with normally distributed numbers and returns it. */
+        fillGaussian<A extends Float32Array | Float64Array>(array: A,
+            mean?: number, stddev?: number): A;
+        /** Copy of the current state, for saving. */
+        state(): State;
+        /** Restores a state returned by `state()`. */
+        setState(state: State): void;
+    }
+
+    /** Independent generator. */
+    class Generator implements Source {
+        /** Seeded with `seed`, or from the clock without one. */
+        constructor(seed?: Seed);
+        seed(seed?: Seed): void;
+        int(min: number, max: number): number;
+        float(): number;
+        float(max: number): number;
+        float(min: number, max: number): number;
+        bool(p?: number): boolean;
+        gaussian(mean?: number, stddev?: number): number;
+        angle(): number;
+        pick<T>(items: T[], weights?: number[] | Float32Array): T | undefined;
+        pick(items: NumberArray, weights?: number[] | Float32Array): number | undefined;
+        sample<T>(items: T[], count: number): T[];
+        sample(items: NumberArray, count: number): number[];
+        shuffle<A extends List<any>>(items: A): A;
+        weighted(weights: number[] | Float32Array): number;
+        fill<A extends NumberArray>(array: A, min?: number, max?: number): A;
+        fillGaussian<A extends Float32Array | Float64Array>(array: A,
+            mean?: number, stddev?: number): A;
+        state(): State;
+        setState(state: State): void;
+        /** New generator at the same point of the sequence. */
+        clone(): Generator;
+    }
+
+    /** The script's generator: see `Source`. */
+    function seed(seed?: Seed): void;
+    function int(min: number, max: number): number;
+    function float(): number;
+    function float(max: number): number;
+    function float(min: number, max: number): number;
+    function bool(p?: number): boolean;
+    function gaussian(mean?: number, stddev?: number): number;
+    function angle(): number;
+    function pick<T>(items: T[], weights?: number[] | Float32Array): T | undefined;
+    function pick(items: NumberArray, weights?: number[] | Float32Array): number | undefined;
+    function sample<T>(items: T[], count: number): T[];
+    function sample(items: NumberArray, count: number): number[];
+    function shuffle<A extends List<any>>(items: A): A;
+    function weighted(weights: number[] | Float32Array): number;
+    function fill<A extends NumberArray>(array: A, min?: number, max?: number): A;
+    function fillGaussian<A extends Float32Array | Float64Array>(array: A,
+        mean?: number, stddev?: number): A;
+    function state(): State;
+    function setState(state: State): void;
 }
 
 
@@ -2263,191 +3155,57 @@ declare namespace Sound {
 }
 
 
-/* === Module: System Core (system) === */
-/**
- * PS2 system, filesystem, timing and hardware helpers.
- *
- * Paths use the PS2 device syntax such as `host:/`, `mass:/` or `mc0:/`.
- * Return values from filesystem and device operations are native result codes;
- * callers should check them before continuing.
- *
- * Example:
- * ```js
- * console.log(System.bootPath);
- * for (const entry of System.listDir('host:/')) {
- *     console.log(entry.dir ? '[DIR]' : entry.size, entry.name);
- * }
- * System.sleep(16);
- * ```
- */
-declare namespace System {
-    /** One directory entry returned by `listDir()`. */
-    interface DirectoryEntry {
-        /** File or directory name. */
-        name: string;
-        /** File size in bytes; directory sizes may be zero. */
-        size: number;
-        /** True when this entry is a directory. */
-        dir: boolean;
+/* === Module: Tween3D (tween3d) === */
+/** Tweens of native 3D objects advanced in C, with the semantics of Tween:
+ * start values are read when the tween starts (after its delay), the last
+ * frame sets the exact end values, repeat adds cycles and yoyo runs every
+ * other cycle backwards. No JavaScript runs per frame: tweens advance in one
+ * native Loop system (attachLoop(), PRE_UPDATE like Tween) or with advance(dt).
+ * For plain JavaScript objects keep using Tween. */
+declare namespace Tween3D {
+    const LOOP_PRIORITY: number;
+    type Vector3 = ArrayLike<number>;
+    interface Props {
+        /** Node / Instance local position, Camera eye. */
+        position?: Vector3;
+        /** Node / Instance only. */
+        scale?: Vector3;
+        /** Node / Instance only: Euler goal in radians (Rz·Ry·Rx), reached by
+         * slerp on the short arc; overshooting curves extrapolate the arc. */
+        rotation?: Vector3;
+        /** Camera only: look target. */
+        target?: Vector3;
     }
-
-    /** Memory counters returned by `getMemoryStats()`. */
-    interface MemoryStats {
-        /** Core/binary footprint in bytes. */
-        core: number;
-        /** Reserved native stack in bytes. */
-        nativeStack: number;
-        /** Current native allocations in bytes. */
-        allocs: number;
-        /** Highest observed current native allocation total in bytes since startup. */
-        allocsPeak: number;
-        /** Failed nonzero native allocation requests since startup. */
-        allocationFailures: number;
-        /** Total reported usage in bytes. */
-        used: number;
-        /** Total arena and mapped regions requested from the EE heap. */
-        heapReserved: number;
-        /** Bytes in allocator in-use chunks, including chunk overhead. */
-        heapAllocated: number;
-        /** Approximate allocator metadata/alignment overhead in bytes. */
-        heapOverhead: number;
-        /** Bytes in reusable free chunks. */
-        heapFree: number;
-        /** Number of free chunks in the allocator. */
-        heapFreeChunks: number;
-        /** Free bytes in the topmost releasable chunk. */
-        heapTopFree: number;
-        /** Free bytes outside the top chunk; a fragmentation indicator. */
-        heapNonTopFree: number;
-        /** Bytes allocated by the QuickJS runtime, measured like `allocs` and part of it. */
-        jsHeap: number;
-        /** Current QuickJS allocation ceiling in bytes. Initially half of free RAM at runtime start; may be recalculated with `setNativeMemoryHeadroom()`. */
-        jsLimit: number;
-        /** Live JavaScript objects. */
-        jsObjects: number;
+    interface Options {
+        /** Curve name, short or long (`"outBack"`, `"easeOutBack"`); default `"outQuad"`. */
+        ease?: string;
+        delay?: number;
+        /** Extra cycles: an integer or Infinity. */
+        repeat?: number;
+        yoyo?: boolean;
+        /** Kills the other tweens of the same target when this one starts. */
+        overwrite?: boolean;
     }
-
-    /** EE CPU information returned by `getCPUInfo()`. */
-    interface CPUInfo {
-        /** EE CPU implementation identifier. */
-        implementation: number;
-        /** EE CPU revision identifier. */
-        revision: number;
-        /** Installed EE RAM size in bytes. */
-        RAMSize: number;
-        /** EE bus clock frequency. */
-        BUSClock: number;
-        /** EE CPU clock frequency. */
-        CPUClock: number;
-        /** PS2 machine type identifier. */
-        MachineType: number;
+    /** Awaitable: resolves with true when the tween completes, false when killed. */
+    interface Handle extends PromiseLike<boolean> {
+        readonly active: boolean;
+        readonly paused: boolean;
+        /** Progress of the current cycle, 0..1. */
+        readonly progress: number;
+        readonly finished: Promise<boolean>;
+        pause(): this;
+        resume(): this;
+        /** Stops it; with complete, sets the end values first. */
+        kill(complete?: boolean): void;
     }
-
-    /** Recalculates the QuickJS heap ceiling using current free EE memory and
-     * leaves `bytes` available for native assets at this snapshot. Call at a
-     * phase boundary before loading assets. Native allocations made later can
-     * consume this headroom. At least 64 KiB must remain available for JS.
-     * Returns the resulting QuickJS allocation limit in bytes. */
-    function setNativeMemoryHeadroom(bytes: number): number;
-
-    /** Memory-card status returned by `getMCInfo()`. */
-    interface MemoryCardInfo {
-        /** Memory-card type identifier. */
-        type: number;
-        /** Free memory reported by the card driver. */
-        freemem: number;
-        /** Format/status flag reported by the card driver. */
-        format: number;
-    }
-
-    /** GS GPU information returned by `getGPUInfo()`. */
-    interface GPUInfo {
-        revision: number;
-        id: number;
-    }
-
-    /** One registered filesystem/device entry. */
-    interface DeviceInfo {
-        name: string;
-        desc: string;
-    }
-
-    /** The path from which the application booted (e.g. "mass0:/", "cdfs:/") */
-    const bootPath: string;
-    /** Legacy alias for bootPath. */
-    const boot_path: string;
-
-    /** Lists entries in a directory or path relative to `bootPath`. */
-    function listDir(path?: string): DirectoryEntry[];
-
-    /** Removes an empty directory and returns the underlying system result. */
-    function removeDirectory(path: string): number;
-
-    /** Copies a file and returns zero on success. */
-    function copyFile(source: string, destination: string): number;
-
-    /** Moves or renames a file and returns zero on success. */
-    function moveFile(source: string, destination: string): number;
-    /** Renames a file or directory and returns the native result code. */
-    function rename(source: string, destination: string): number;
-
-    /** Returns raw EE CPU clock ticks. */
-    function getTicks(): number;
-
-    /** Returns high-resolution elapsed time in milliseconds. */
-    function getMilliseconds(): number;
-
-    /** Suspends the current EE thread for the specified milliseconds. */
-    function sleep(ms: number): void;
-
-    /** Returns currently used EE RAM in bytes. */
-    function getUsedMemory(): number;
-
-    /** Returns remaining available EE RAM in bytes. */
-    function getFreeMemory(): number;
-
-    /** Yields briefly to the EE scheduler. */
-    function delay(): void;
-
-    /** Returns memory counters from the legacy System API. */
-    function getMemoryStats(): MemoryStats;
-
-    /** Returns basic EE CPU and memory information. */
-    function getCPUInfo(): CPUInfo;
-
-    /** Returns basic GS GPU information. */
-    function getGPUInfo(): GPUInfo;
-
-    /** Returns the console temperature in Celsius when supported. */
-    function getTemperature(): number | undefined;
-
-    /** Returns memory-card information for a controller port (0 or 1). */
-    function getMCInfo(port?: number): MemoryCardInfo;
-
-    /** Returns information about a mass-storage block device. */
-    function getBDMInfo(device: string): { name: string; index: number } | undefined;
-
-    /** Returns currently registered file-system devices. */
-    function devices(): DeviceInfo[];
-
-    /** Mounts a block device at a file-system mount point. */
-    function mount(mountpoint: string, blockdev: string, mode?: number): number;
-
-    /** Unmounts a file-system device. */
-    function umount(device: string): number;
-
-    /** Loads an ELF using the legacy Athena loader. */
-    function loadELF(path: string, args?: string[]): number;
-
-    /** Enables or disables the legacy dark-mode flag. */
-    function setDarkMode(enabled: boolean): void;
-
-    /** Forces a QuickJS garbage-collection cycle. */
-    function gc(): void;
-
-    /** Exit application to the PS2 browser/OSDSYS */
-    function exit(): void;
-
-    /** Alias for exiting to the PS2 browser/OSDSYS. */
-    function exitToBrowser(): void;
+    type Target = Scene3D.Node | Model3D.Instance | Camera3D.Camera;
+    /** The tween retains its target (cameras too, after dispose). */
+    function to(target: Target, props: Props, duration: number, options?: Options): Handle;
+    function killTweensOf(target: Target, complete?: boolean): number;
+    function isTweening(target: Target): boolean;
+    /** Advances every tween; returns how many ended. */
+    function advance(dt: number): number;
+    function attachLoop(priority?: number): void;
+    function detachLoop(): boolean;
+    function isAttached(): boolean;
 }

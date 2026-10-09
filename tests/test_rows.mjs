@@ -1,3 +1,4 @@
+import "./native_random.mjs";
 import assert from "node:assert/strict";
 import {tuning} from "../game/tuning.js";
 import {createRows, resetRows, advanceRows, updateRows, slotOf, rowKind, isBlocked, logAt,

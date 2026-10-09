@@ -1,7 +1,11 @@
-import {createPlayer, requestMove, resetPlayer, update as updatePlayer, carry, placeX,
-    clearQueue, isHopping} from "./player.js";
-import {createRows, resetRows, beginRows, stepRows, advanceRows, updateRows, rowKind, isBlocked,
-    groundY, logAt, hazardAt, difficulty, slotOf, takeCoin, WATER} from "./rows.js";
+import {
+    createPlayer, requestMove, resetPlayer, update as updatePlayer, carry, placeX,
+    clearQueue, isHopping
+} from "./player.js";
+import {
+    createRows, resetRows, beginRows, stepRows, advanceRows, updateRows, rowKind, isBlocked,
+    groundY, logAt, hazardAt, difficulty, slotOf, takeCoin, WATER
+} from "./rows.js";
 
 export const PLAYING = 0, DEAD = 1, TITLE = 2;
 export const CAR_HIT = 1, TRAIN_HIT = 2, DROWNED = 3, SWEPT = 4, EAGLE = 5;
@@ -60,7 +64,7 @@ function newRun(game, run) {
 export function resetGame(game) {
     resetRows(game.rows, runSeed(game.t, 0));
     newRun(game, 0);
-    game.top = game.deaths = game.restarts = game.coins = 0;
+    game.deaths = game.restarts = 0;
 }
 
 export function setPlayers(game, count) {

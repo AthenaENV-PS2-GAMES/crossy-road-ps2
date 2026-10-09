@@ -1,3 +1,4 @@
+import "./native_random.mjs";
 import assert from "node:assert/strict";
 import {tuning} from "../game/tuning.js";
 import {UP, DOWN, RIGHT, placeX} from "../game/player.js";
@@ -303,10 +304,12 @@ test("eagle death waits for the swoop before restart is allowed", () => {
 test("debug reset regenerates run 0 exactly", () => {
     const a = createGame(tuning), b = createGame(tuning);
     for (let i = 0; i < 4; i++) hop(b, UP);
+    b.top = 12; b.coins = 37;
+    const previousTop = b.top, previousCoins = b.coins;
     resetGame(b);
     const kinds = g => { let k = ""; for (let z = 0; z > -16; z--) k += rowKind(g.rows, z); return k; };
     assert.equal(kinds(b), kinds(a));
-    assert.deepEqual([b.run, b.top, b.deaths], [0, 0, 0]);
+    assert.deepEqual([b.run, b.top, b.deaths, b.coins], [0, previousTop, 0, previousCoins]);
 });
 
 test("lily pad: safe landing, no drift; next to it is open water", () => {
