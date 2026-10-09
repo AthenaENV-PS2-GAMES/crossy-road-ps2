@@ -1,14 +1,15 @@
 // Grid hop logic. Pure: no engine globals, no allocations after creation.
 // Forward (UP) is -Z. x is fractional only while riding a log; hops onto
 // solid rows snap it back to the integer grid.
-// world: {isBlocked(x, z), groundY(z), isWater(z)}.
+// world: {isBlocked(x, z), groundY(z), isWater(z), lift?(p, x, z)}; lift is the
+// height of another player standing on (x, z), whose head p would land on.
 export const UP = 0, DOWN = 1, LEFT = 2, RIGHT = 3;
 const DX = [0, 0, -1, 1], DZ = [-1, 1, 0, 0];
 const IDLE = 0, HOP = 1, BUMP = 2;
 
 export function createPlayer(t, world) {
     const p = {
-        t, world,
+        t, world, startX: t.start[0], // startX: set per player in two-player games.
         x: 0, z: 0, fromX: 0, fromZ: 0, toX: 0, toZ: 0,
         mode: IDLE, elapsed: 0, dir: UP, queued: -1,
         hops: 0, bumps: 0, bestZ: 0, landed: false,
@@ -19,7 +20,7 @@ export function createPlayer(t, world) {
 }
 
 export function resetPlayer(p) {
-    p.x = p.t.start[0];
+    p.x = p.startX;
     p.z = p.bestZ = p.t.start[1];
     p.mode = IDLE;
     p.elapsed = 0;
@@ -107,11 +108,13 @@ export function update(p, dt) {
     pose(p);
 }
 
+function lift(p, x, z) { return p.world.lift ? p.world.lift(p, x, z) : 0; }
+
 function pose(p) {
     const t = p.t, w = p.world;
     if (p.mode === HOP) {
         const u = p.elapsed / t.hopSeconds;
-        const fromY = w.groundY(p.fromZ), toY = w.groundY(p.toZ);
+        const fromY = w.groundY(p.fromZ) + lift(p, p.fromX, p.fromZ), toY = w.groundY(p.toZ) + lift(p, p.toX, p.toZ);
         p.rx = p.fromX + (p.toX - p.fromX) * u;
         p.rz = p.fromZ + (p.toZ - p.fromZ) * u;
         p.ry = fromY + (toY - fromY) * u + 4 * t.hopHeight * u * (1 - u);
@@ -120,7 +123,7 @@ function pose(p) {
     } else {
         p.rx = p.x;
         p.rz = p.z;
-        p.ry = w.groundY(p.z);
+        p.ry = w.groundY(p.z) + lift(p, p.x, p.z);
         p.scaleY = p.mode === BUMP ?
             1 - (1 - t.squash) * .6 * Math.sin(Math.PI * p.elapsed / t.bumpSeconds) : 1;
     }

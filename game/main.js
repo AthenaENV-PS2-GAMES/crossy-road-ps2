@@ -3,8 +3,8 @@ import { UP, DOWN, LEFT, RIGHT, isBusy, isHopping } from "./player.js";
 import { POOLS, GRASS, ROAD, WATER, RAIL, LILY, TRAIN_IDLE, TRAIN_WARN, TRAIN_PASS, slotOf, rowKind, trainLength }
     from "./rows.js";
 import {
-    createGame, updateGame, resetGame, canRestart, runSeed, showTitle, newTop, DEAD, TITLE, CAR_HIT,
-    TRAIN_HIT, DROWNED, SWEPT, EAGLE
+    createGame, updateGame, resetGame, canRestart, runSeed, showTitle, newTop, setPlayers, DEAD, TITLE,
+    CAR_HIT, TRAIN_HIT, DROWNED, SWEPT, EAGLE
 } from "./game.js";
 import { createBot, botMove } from "./bot.js";
 import {
@@ -22,10 +22,14 @@ Screen.setMode(mode);
 
 const memoryBefore = System.getMemoryStats();
 const c = tuning.camera, rad = Math.PI / 180, g0 = tuning.ground;
-const camera = new Camera3D.Camera({
+// Two views: one full-screen camera, or (two players far apart) the leader's
+// in the top half and the other's in the bottom half. Both are full-screen
+// projections clipped by the GS scissor; each is aimed so its player sits at
+// the centre of its half.
+const cameras = [0, 1].map(() => new Camera3D.Camera({
     aspect: mode.width / height,
     fovYDegrees: c.fovYDegrees, near: c.near, far: c.far
-});
+}));
 const horizontal = c.distance * Math.cos(c.elevationDegrees * rad);
 const camOffX = horizontal * Math.sin(c.azimuthDegrees * rad);
 const camOffY = c.distance * Math.sin(c.elevationDegrees * rad);
@@ -85,10 +89,14 @@ function single(name, unlit, target) {
     instanceCount++;
     return it;
 }
-const chickenShadowGrass = single("shadow_grass", true, shadowBatch).setScale(.52, 1, .55);
-const chickenShadowRoad = single("shadow_road", true, shadowBatch).setScale(.52, 1, .55);
-const chicken = single("chicken", false, dynamicBatch);
-const eagleItem = single("eagle", false, dynamicBatch);
+// Per runner: chicken (player 2 is yellow), its blob shadows and its eagle.
+const chickens = [], eagles = [], shadowsGrass = [], shadowsRoad = [];
+for (const name of ["chicken", "chicken_p2"]) {
+    shadowsGrass.push(single("shadow_grass", true, shadowBatch).setScale(.52, 1, .55));
+    shadowsRoad.push(single("shadow_road", true, shadowBatch).setScale(.52, 1, .55));
+    chickens.push(single(name, false, dynamicBatch));
+    eagles.push(single("eagle", false, dynamicBatch));
+}
 
 // --- Particles: one cube instance per particle slot, batch rebuilt on change --
 const particleBatch = new Render3D.Batch();
@@ -119,15 +127,15 @@ function drawParticles() {
 function burst(color, count, x, y, z, spread, up, life, size, gravity, drag) {
     if (emit(particles, color, count, x, y, z, spread, up, life, size, gravity, drag) > 0) bursts++;
 }
-function deathBurst() {
-    const x = game.deathX, z = game.deathZ;
+function deathBurst(r) {
+    const x = r.deathX, z = r.deathZ, cause = r.cause;
     const sx = x - camX;
-    if (game.cause === CAR_HIT || game.cause === TRAIN_HIT) {
+    if (cause === CAR_HIT || cause === TRAIN_HIT) {
         play(audio, "squash", sx);
-        shakeTime = juice.shakeSeconds * (game.cause === TRAIN_HIT ? 1.4 : 1);
+        shakeTime = juice.shakeSeconds * (cause === TRAIN_HIT ? 1.4 : 1);
         burst(WHITE, 16, x, .5, z, 2.6, 3.6, .9, .12, 5, 2.2);
         burst(RED, 3, x, .7, z, 1.6, 3.0, .7, .10, 6, 1.5);
-    } else if (game.cause === DROWNED || game.cause === SWEPT) {
+    } else if (cause === DROWNED || cause === SWEPT) {
         play(audio, "splash", sx);
         burst(SPLASH, 18, x, -.05, z, 1.7, 4.2, .6, .12, 12, .5);
     } else {
@@ -138,7 +146,7 @@ function deathBurst() {
 // --- Game and row visuals ------------------------------------------------------
 const game = createGame(tuning);
 let rows = game.rows; // Swapped with the prepared buffer on each restart.
-const player = game.player, n = rows.n, M = rows.M;
+const player = game.player, runners = game.runners, n = rows.n, M = rows.M;
 const slotBatch = [];
 for (let s = 0; s < n; s++) slotBatch.push(new Render3D.Batch());
 const STATIC_MAX = 40;
@@ -158,11 +166,16 @@ const slotRipple = new Int32Array(n).fill(-1); // Water streaks, scrolled with t
 const REBUILD_BUDGET = 8; // Slots rebuilt per update; a new run needs 3 updates instead of one long one.
 
 // Moving instances (vehicles, logs, trains) are positioned with one
-// Model3D.setPositions call per frame. The list is rebuilt when rows change;
-// moving[] is a persistent array whose length is set, not reallocated.
+// Model3D.setPositions call per frame, only on rows a view shows (visLo/visHi,
+// per view); rows out of view are not drawn either. The list is rebuilt when
+// rows or the visible range change (about once per hop), not every frame:
+// rebuilding costs ~2 ms. moving[] is a persistent array whose length is set,
+// not reallocated.
 const MOVING_MAX = n * (M + TRAIN_PARTS);
 const moving = [], movingRef = new Int32Array(MOVING_MAX), movingPos = new Float32Array(MOVING_MAX * 3);
 let movingCount = 0, movingDirty = true;
+const visLo = new Int32Array(2), visHi = new Int32Array(2), builtLo = new Int32Array(2), builtHi = new Int32Array(2);
+function shown(z) { return (z >= visLo[0] && z <= visHi[0]) || (z >= visLo[1] && z <= visHi[1]); }
 
 function releaseSlot(s) {
     if (slotGround[s] >= 0) { giveItem(slotGround[s]); slotGround[s] = -1; }
@@ -242,6 +255,7 @@ function collectMoving() {
     movingCount = 0;
     for (let s = 0; s < n; s++) {
         const kind = builtKind[s];
+        if (!shown(rows.z[s])) continue;
         if (kind === ROAD || kind === WATER) {
             for (let j = 0; j < builtMovers[s]; j++) {
                 movingRef[movingCount++] = s * M + j;
@@ -254,11 +268,13 @@ function collectMoving() {
             }
         }
     }
+    for (let i = 0; i < 2; i++) { builtLo[i] = visLo[i]; builtHi[i] = visHi[i]; }
     movingDirty = false;
 }
 
 function placeMovers() {
-    if (movingDirty) collectMoving();
+    if (movingDirty || visLo[0] !== builtLo[0] || visHi[0] !== builtHi[0] ||
+        visLo[1] !== builtLo[1] || visHi[1] !== builtHi[1]) collectMoving();
     const car = tuning.rail.carLength;
     for (let k = 0; k < movingCount; k++) {
         const ref = movingRef[k], o = k * 3;
@@ -278,7 +294,7 @@ function placeMovers() {
     // Coins spin and bob; a taken coin is parked once.
     const cn = tuning.coin, angle = frame * cn.spin / 60, bob = Math.sin(frame * .08) * cn.bob;
     for (let s = 0; s < n; s++) {
-        if (slotCoin[s] < 0 || !coinShown[s]) continue;
+        if (slotCoin[s] < 0 || !coinShown[s] || !shown(rows.z[s])) continue;
         const it = item(slotCoin[s]);
         if (!rows.hasCoin[s]) { it.setPosition(0, HIDDEN, 0); coinShown[s] = 0; continue; }
         const base = builtKind[s] === ROAD ? g0.roadY : g0.grassY;
@@ -288,7 +304,7 @@ function placeMovers() {
     // every 4 cells, the ripple model's period.
     const seconds = frame / 60;
     for (let s = 0; s < n; s++) {
-        if (slotRipple[s] < 0) continue;
+        if (slotRipple[s] < 0 || !shown(rows.z[s])) continue;
         const v = rows.vel[s], drift = v !== 0 ? v * juice.rippleDrift : juice.rippleStill;
         let x = (seconds * drift + rows.z[s] * 1.37) % 4;
         if (x < 0) x += 4;
@@ -300,14 +316,15 @@ function placeMovers() {
         const state = rows.trainState[s];
         const on = state !== TRAIN_IDLE && (state === TRAIN_PASS || (frame & 16) !== 0);
         // Sounds: a bell on each blink while warning, the horn when the train enters.
-        const near = falloff(audio, rows.z[s] - player.rz);
+        const near = falloff(audio, nearestRunner(rows.z[s]));
         if (on && !lightOn[s] && state === TRAIN_WARN && near > 0)
             play(audio, "bell", tuning.player.minX - 1 - camX, near);
         if (state === TRAIN_PASS && trainHeard[s] !== TRAIN_PASS && near > 0)
             play(audio, "train", -rows.trainDir[s] * 4, near);
         lightOn[s] = on ? 1 : 0;
         trainHeard[s] = state;
-        item(slotLight[s]).setPosition(tuning.player.minX - 1, on ? g0.railY : HIDDEN, rows.z[s] + .40);
+        if (shown(rows.z[s]))
+            item(slotLight[s]).setPosition(tuning.player.minX - 1, on ? g0.railY : HIDDEN, rows.z[s] + .40);
     }
 }
 
@@ -328,6 +345,13 @@ coinFont.outline = 2;
 coinFont.outlineColor = Color.new(60, 30, 0);
 coinFont.preload("0123456789 NEWTOP", { budgetMs: 0 });
 let shownCoins = -1, coinText = "", coinX = 0;
+// Player 2's score, in its chicken's yellow.
+const p2Font = new Font(hud.font, { size: hud.fontSize });
+p2Font.color = Color.new(255, 214, 66);
+p2Font.outline = 2;
+p2Font.outlineColor = Color.new(60, 30, 0);
+p2Font.preload("0123456789", { budgetMs: 0 });
+let shownP = [-1, -1], pText = ["", ""], pW = [0, 0], p2X = 0;
 const titleFont = new Font(hud.font, { size: hud.titleSize });
 titleFont.color = Color.new(255, 255, 255);
 titleFont.outline = 3;
@@ -335,25 +359,91 @@ titleFont.outlineColor = Color.new(20, 20, 30);
 titleFont.preload(hud.title.join(""), { budgetMs: 0 });
 const titleX = hud.title.map(line => (mode.width - titleFont.getTextSize(line).width) / 2);
 const retryText = "PRESS X", autoText = "AUTO", testText = "TEST";
+const joinText = "P2 PRESS X", joinedText = "2 PLAYERS";
+const joinX = (mode.width - smallFont.getTextSize(joinText).width) / 2;
+const joinedX = (mode.width - smallFont.getTextSize(joinedText).width) / 2;
 const retryX = (mode.width - smallFont.getTextSize(retryText).width) / 2;
 const autoX = mode.width - 18 - smallFont.getTextSize(autoText).width;
 
 const audio = createAudio(tuning);
-let wasHopping = false, lastBumps = 0, panelTime = 0;
+const wasHopping = new Uint8Array(2), lastBumps = new Int32Array(2), wasAlive = new Uint8Array(2);
+const eagleGrab = new Uint8Array(2), wasMounted = new Uint8Array(2);
+let panelTime = 0;
 
-let camX = 0, camZ = 0;
 // Juice: the log/pad landed on dips (dipRef = its mover index), the camera
 // shakes on hits.
-const juice = tuning.juice;
-let dipRef = -1, dipTime = 0, dipNow = 0, idleTime = 0;
+const juice = tuning.juice, multi = tuning.multi;
+let dipRef = -1, dipTime = 0, dipNow = 0;
+const idleTime = new Float32Array(2);
 const lightOn = new Uint8Array(n), trainHeard = new Uint8Array(n);
-function cameraTarget() {
-    const focusZ = Math.min(player.rz, game.scrollZ);
-    return focusZ + c.targetOffset[2];
+
+// --- Views: merge and split ----------------------------------------------------
+// Rows from a camera's target to the ground point a quarter of the screen
+// above (qUp) or below (qDown) the centre, i.e. the centres of the two halves.
+const tanHalf = Math.tan(c.fovYDegrees * rad / 2), ce = Math.cos(c.elevationDegrees * rad);
+const se = Math.sin(c.elevationDegrees * rad), ca = Math.cos(c.azimuthDegrees * rad);
+const qUp = .5 * tanHalf * c.distance / (ca * (se - .5 * tanHalf * ce));
+const qDown = .5 * tanHalf * c.distance / (ca * (se + .5 * tanHalf * ce));
+// Two players whose focus points are up to qUp + qDown rows apart fit one
+// view; beyond that each half follows its own player. At exactly that gap the
+// split cameras equal the merged one, so the split opens without a jump.
+const viewX = new Float32Array(2), viewZ = new Float32Array(2), wantX = new Float32Array(2),
+    wantZ = new Float32Array(2);
+let split = false, splitFrames = 0, camX = 0;
+const fullScissor = Screen.getParam(Screen.SCISSOR_BOUNDS);
+const topScissor = { x0: fullScissor.x0, y0: fullScissor.y0, x1: fullScissor.x1, y1: (height >> 1) - 1 };
+const bottomScissor = { x0: fullScissor.x0, y0: height >> 1, x1: fullScissor.x1, y1: fullScissor.y1 };
+function clampX(x) { return Math.max(-c.maxTargetX, Math.min(c.maxTargetX, x)) + c.targetOffset[0]; }
+
+// Runners the camera follows: the living ones; at game over, the last to die.
+function followed(r) {
+    if (!r.joined) return false;
+    if (game.state !== DEAD) return r.alive;
+    const o = runners[1 - r.index];
+    return !o.joined || r.deadTime <= o.deadTime;
+}
+function nearestRunner(z) {
+    let d = 1e9;
+    for (let i = 0; i < 2; i++) if (runners[i].joined) d = Math.min(d, Math.abs(z - runners[i].player.rz));
+    return d;
+}
+function aimViews() {
+    const a = runners[0], b = runners[1], fa = followed(a), fb = followed(b);
+    if (fa !== fb || !fa) {
+        // One view, as in a solo game.
+        const r = fa || !fb ? a : b, p = r.player;
+        wantX[0] = wantX[1] = clampX(p.rx);
+        wantZ[0] = wantZ[1] = Math.min(p.rz, r.scrollZ) + c.targetOffset[2];
+        return;
+    }
+    // The scroll line pulls each focus ahead of an idle player (the eagle's
+    // warning), but only so far: a half screen is short.
+    const za = Math.max(Math.min(a.player.rz, a.scrollZ), a.player.rz - multi.maxDrift) + multi.focusOffset;
+    const zb = Math.max(Math.min(b.player.rz, b.scrollZ), b.player.rz - multi.maxDrift) + multi.focusOffset;
+    const lead = za <= zb ? a : b, trail = lead === a ? b : a;
+    const zl = Math.min(za, zb), zt = Math.max(za, zb), gap = zt - zl, D = qUp + qDown;
+    const xl = clampX(lead.player.rx), xt = clampX(trail.player.rx);
+    if (gap <= D) {
+        wantX[0] = wantX[1] = (xl + xt) / 2;
+        wantZ[0] = wantZ[1] = zl + gap * qUp / D;
+    } else {
+        wantX[0] = xl; wantZ[0] = zl + qUp; // Top half: the leader.
+        wantX[1] = xt; wantZ[1] = zt - qDown; // Bottom half.
+    }
 }
 function snapCamera() {
-    camX = Math.max(-c.maxTargetX, Math.min(c.maxTargetX, player.rx)) + c.targetOffset[0];
-    camZ = cameraTarget();
+    aimViews();
+    for (let i = 0; i < 2; i++) { viewX[i] = wantX[i]; viewZ[i] = wantZ[i]; }
+}
+function followViews(dt) {
+    aimViews();
+    const kx = 1 - Math.exp(-c.followRateX * dt), kz = 1 - Math.exp(-c.followRateZ * dt);
+    for (let i = 0; i < 2; i++) {
+        viewX[i] += (wantX[i] - viewX[i]) * kx;
+        viewZ[i] += (wantZ[i] - viewZ[i]) * kz;
+    }
+    split = Math.abs(viewX[0] - viewX[1]) > multi.mergeEpsilon || Math.abs(viewZ[0] - viewZ[1]) > multi.mergeEpsilon;
+    camX = viewX[0];
 }
 let shakeTime = 0;
 function placeCamera() {
@@ -363,32 +453,36 @@ function placeCamera() {
         sx = Math.sin(frame * 2.3) * k;
         sz = Math.cos(frame * 3.1) * k * .6;
     }
-    camera.setPosition(camX + sx + camOffX, c.targetOffset[1] + camOffY, camZ + sz + camOffZ)
-        .lookAt(camX + sx, c.targetOffset[1], camZ + sz);
+    for (let i = 0; i < (split ? 2 : 1); i++) {
+        cameras[i].setPosition(viewX[i] + sx + camOffX, c.targetOffset[1] + camOffY, viewZ[i] + sz + camOffZ)
+            .lookAt(viewX[i] + sx, c.targetOffset[1], viewZ[i] + sz);
+    }
 }
 
-function drawPlayer() {
-    const t = tuning, kind = rowKind(rows, Math.round(player.rz));
-    chickenShadowGrass.setPosition(0, HIDDEN, 0);
-    chickenShadowRoad.setPosition(0, HIDDEN, 0);
+function drawPlayer(r) {
+    const t = tuning, i = r.index, player = r.player, kind = rowKind(rows, Math.round(player.rz));
+    const chicken = chickens[i], eagleItem = eagles[i];
+    shadowsGrass[i].setPosition(0, HIDDEN, 0);
+    shadowsRoad[i].setPosition(0, HIDDEN, 0);
     eagleItem.setPosition(0, HIDDEN, 0);
-    if (game.state === DEAD) {
-        const dt = game.deadTime, cause = game.cause;
+    if (!r.joined) { chicken.setPosition(0, HIDDEN, 0); return; }
+    if (!r.alive) {
+        const dt = r.deadTime, cause = r.cause;
         if (cause === CAR_HIT || cause === TRAIN_HIT) {
-            chicken.setPosition(game.deathX, kind === RAIL ? g0.railY : g0.roadY, game.deathZ)
+            chicken.setPosition(r.deathX, kind === RAIL ? g0.railY : g0.roadY, r.deathZ)
                 .setScale(t.death.flatXZ, t.death.flatY, t.death.flatXZ);
         } else if (cause === DROWNED || cause === SWEPT) {
             const u = Math.min(1, dt / t.death.sinkSeconds);
-            chicken.setPosition(game.deathX, u >= 1 ? HIDDEN : g0.logTop - u * .9, game.deathZ)
+            chicken.setPosition(r.deathX, u >= 1 ? HIDDEN : g0.logTop - u * .9, r.deathZ)
                 .setScale(1, 1, 1);
         } else {
             // Eagle: swoop from ahead onto the chicken, then carry it off behind.
             const e = t.eagle, swoop = Math.min(1, dt / e.swoopSeconds);
             const carryU = Math.max(0, Math.min(1, (dt - e.swoopSeconds) / e.carrySeconds));
-            const ex = game.deathX, ez = game.deathZ - 9 * (1 - swoop) + 12 * carryU;
+            const ex = r.deathX, ez = r.deathZ - 9 * (1 - swoop) + 12 * carryU;
             const ey = 4.5 - 3.6 * swoop + 4 * carryU;
             eagleItem.setPosition(ex, ey, ez);
-            chicken.setPosition(ex, carryU > 0 ? ey - 1.05 : player.ry, carryU > 0 ? ez : game.deathZ)
+            chicken.setPosition(ex, carryU > 0 ? ey - 1.05 : player.ry, carryU > 0 ? ez : r.deathZ)
                 .setScale(1, 1, 1);
         }
         return;
@@ -396,15 +490,16 @@ function drawPlayer() {
     // Idle: the chicken breathes; on the title screen it also looks around.
     let scaleY = player.scaleY, yaw = player.yaw;
     if (!isBusy(player)) {
-        idleTime += 1 / 60;
-        scaleY *= 1 + juice.breathe * Math.sin(idleTime * juice.breatheRate);
-        if (game.state === TITLE) yaw += juice.lookYaw * Math.sin(idleTime * juice.lookRate);
-    } else idleTime = 0;
-    chicken.setPosition(player.rx, player.ry - (game.riding >= 0 && game.riding === dipRef ? dipNow : 0), player.rz)
+        const it = idleTime[i] += 1 / 60;
+        scaleY *= 1 + juice.breathe * Math.sin(it * juice.breatheRate + i * 1.3);
+        if (game.state === TITLE) yaw += juice.lookYaw * Math.sin(it * juice.lookRate + i * 2.1);
+    } else idleTime[i] = 0;
+    chicken.setPosition(player.rx, player.ry - (r.riding >= 0 && r.riding === dipRef ? dipNow : 0), player.rz)
         .setScale(1, scaleY, 1).setRotationEuler(0, yaw, 0);
     const base = game.world.groundY(Math.round(player.rz));
     const lift = 1 - .35 * Math.min(1, Math.max(0, player.ry - base) / tuning.player.hopHeight);
-    const shadow = kind === GRASS ? chickenShadowGrass : chickenShadowRoad;
+    if (r.mount >= 0) return; // Riding on the other chicken: its shadow covers both.
+    const shadow = kind === GRASS ? shadowsGrass[i] : shadowsRoad[i];
     shadow.setPosition(player.rx + .12, base + .025, player.rz + .10).setScale(.52 * lift, 1, .55 * lift);
 }
 
@@ -417,6 +512,11 @@ function drawTitle() {
     const lineH = hud.titleSize + 6, y0 = height * .16 + Math.sin(frame * .05) * 4;
     for (let i = 0; i < hud.title.length; i++) titleFont.print(titleX[i], y0 + i * lineH, hud.title[i]);
     if (game.top > 0) smallFont.print((mode.width - topW) / 2, y0 + hud.title.length * lineH + 8, topText);
+    drawJoin();
+}
+function drawJoin() {
+    if (game.count > 1) p2Font.print(joinedX - 8, height * .92, joinedText);
+    else if (frame & 32) smallFont.print(joinX, height * .93, joinText);
 }
 function drawPanel() {
     // Fades in; a dark translucent card with the run's score and the best.
@@ -431,28 +531,82 @@ function drawPanel() {
         panelTextW = scoreFont.getTextSize(panelText).width;
     }
     smallFont.print(panelX + (panelW - panelLabels[0][1]) / 2, y + 14, panelLabels[0][0]);
-    scoreFont.print(panelX + (panelW - panelTextW) / 2, y + 34, panelText);
+    if (game.count > 1) {
+        // One score per player, each in its chicken's colour.
+        scoreFont.print(panelX + panelW * .27 - pW[0] / 2, y + 34, pText[0]);
+        p2Font.print(panelX + panelW * .73 - pW[1] / 2, y + 34, pText[1]);
+    } else scoreFont.print(panelX + (panelW - panelTextW) / 2, y + 34, panelText);
     if (newTop(game)) {
         if (frame & 16) coinFont.print(newTopX, y + 86, newTopText);
     } else smallFont.print(panelX + (panelW - topW) / 2, y + 92, topText);
 }
 
+// Rows a view can show: where the rays through the corners of its part of the
+// screen (NDC y from y0 to y1) meet the ground, widened for props that stand
+// up into view from the rows in front and for the depth of props behind.
+// Slot batches outside are not submitted at all, so a long row window costs
+// nothing where it is not seen.
+function visibleRows(i, y0, y1) {
+    const ex = viewX[i] + camOffX, ey = c.targetOffset[1] + camOffY, ez = viewZ[i] + camOffZ;
+    let fx = -camOffX, fy = -camOffY, fz = -camOffZ;
+    const fl = Math.hypot(fx, fy, fz);
+    fx /= fl; fy /= fl; fz /= fl;
+    let rx = -fz, rz = fx; // f x (0, 1, 0)
+    const rl = Math.hypot(rx, rz);
+    rx /= rl; rz /= rl;
+    const ux = -rz * fy, uy = rz * fx - rx * fz, uz = rx * fy; // right x f
+    const sy = tanHalf, sx = tanHalf * mode.width / height;
+    let lo = 1e9, hi = -1e9;
+    for (let k = 0; k < 4; k++) {
+        const x = k & 1 ? sx : -sx, y = (k & 2 ? y1 : y0) * sy;
+        const dx = fx + y * ux + x * rx, dy = fy + y * uy, dz = fz + y * uz + x * rz;
+        const z = dy < -1e-4 ? ez + (ey - c.targetOffset[1]) / -dy * dz : ez - 1e9 * Math.sign(dz || 1);
+        if (z < lo) lo = z;
+        if (z > hi) hi = z;
+    }
+    visLo[i] = Math.floor(lo) - 1;
+    visHi[i] = Math.ceil(hi) + 2;
+}
+function findVisibleRows() {
+    if (split) { visibleRows(0, 0, 1); visibleRows(1, -1, 0); }
+    else { visibleRows(0, -1, 1); visLo[1] = visLo[0]; visHi[1] = visHi[0]; }
+}
+function drawScene(cam, rowMin, rowMax) {
+    shadowBatch.draw(cam, Render3D.CULL_BACK, lights, shadowStats);
+    addStats(shadowStats);
+    for (let s = 0; s < n; s++) {
+        const z = rows.z[s];
+        if (z < rowMin || z > rowMax) continue;
+        slotBatch[s].draw(cam, Render3D.CULL_BACK, lights, stats);
+        addStats(stats);
+    }
+    dynamicBatch.draw(cam, Render3D.CULL_BACK, lights, stats);
+    addStats(stats);
+    if (particleBatch.size > 0) {
+        particleBatch.draw(cam, Render3D.CULL_BACK, lights, stats);
+        addStats(stats);
+    }
+}
+function addStats(st) {
+    frameStats.triangles += st.triangles; frameStats.drawPasses += st.drawPasses;
+    frameStats.culledObjects += st.culledObjects; frameStats.submittedObjects += st.submittedObjects;
+}
+
 // --- Instrumentation -------------------------------------------------------------
-const pad = Gamepad.player(0);
-const bot = createBot(tuning);
+const pad = Gamepad.player(0), pad2 = Gamepad.player(1);
+const bots = [createBot(tuning), createBot(tuning)];
 let autopilot = false;
 // Test lock (R3): ignores D-pad and X/START from the pad so a scripted run
 // cannot be disturbed by someone playing; the autopilot still drives.
 let inputLocked = false;
 const stats = {}, shadowStats = {};
-// Per-frame totals over the shadow, 24 slot and dynamic batches.
+// Per-frame totals over every batch and view.
 const frameStats = { triangles: 0, drawPasses: 0, culledObjects: 0, submittedObjects: 0 };
 const m = tuning.measurement;
 const cpu = new Float32Array(m.cpuFrames), cpuFrame = new Int32Array(m.cpuFrames);
 const events = new Int32Array(m.maxEvents * 4); // frame, kind (1 death, 2 restart), score, cause
 let frame = 0, cpuCount = 0, cpuNext = 0, presses = 0, logged = 0, reports = 0, rebuilt = 0;
-let lastDeaths = 0, lastRestarts = 0, maxTriangles = 0, maxDrawn = 0, ignoredPresses = 0, resetFrame = 0;
-let eagleGrab = false;
+let lastRestarts = 0, maxTriangles = 0, maxDrawn = 0, ignoredPresses = 0, resetFrame = 0;
 // Max ms: [restart logic, restart release, restart build, row logic, row release, row build].
 const profile = new Float32Array(6);
 const frameWork = new Uint8Array(m.cpuFrames + 8); // slots rebuilt per update, by frame
@@ -508,9 +662,10 @@ function writeReport() {
         game: {
             state: game.state, cause: game.cause, run: game.run, seed: runSeed(tuning, game.run),
             score: game.score, top: game.top, deaths: game.deaths, restarts: game.restarts,
-            scrollZ: game.scrollZ
+            scrollZ: runners[0].scrollZ
         },
         player: { x: player.x, z: player.z, bestZ: player.bestZ, hops: player.hops, bumps: player.bumps },
+        multi: { count: game.count, split, splitFrames, alive: runners.map(r => r.alive), scores: runners.map(r => r.score) },
         rows: rowSummary(), generated: rows.generated, rebuilt, poolUsed: used,
         coins: game.coins, particlePeak, bursts, profile: Array.from(profile, v => Math.round(v * 100) / 100),
         events: eventList, instances: instanceCount, render, maxTriangles, maxDrawn,
@@ -530,6 +685,7 @@ for (let s = 0; s < n; s++) buildSlot(s);
 showTitle(game);
 snapCamera();
 placeCamera();
+findVisibleRows();
 
 Loop.run({
     update(dt) {
@@ -545,18 +701,37 @@ Loop.run({
             dir = -1;
             restart = false;
         }
+        // Player 2: joins with X/START on the title or game-over screen, leaves
+        // with O there; plays with its D-pad.
+        let dir2 = pad2.justPressed(Gamepad.UP) ? UP : pad2.justPressed(Gamepad.DOWN) ? DOWN :
+            pad2.justPressed(Gamepad.LEFT) ? LEFT : pad2.justPressed(Gamepad.RIGHT) ? RIGHT : -1;
+        const between = game.state === TITLE || canRestart(game);
+        if (pad2.justPressed(Gamepad.CROSS) || pad2.justPressed(Gamepad.START)) {
+            if (game.count === 1 && between) { setPlayers(game, 2); play(audio, "coin", 4); snapCamera(); }
+            else if (game.count > 1) restart = restart || !inputLocked;
+        }
+        if (pad2.justPressed(Gamepad.CIRCLE) && game.count > 1 && between) { setPlayers(game, 1); snapCamera(); }
+        if (game.count === 1 || inputLocked) dir2 = -1;
         if (pad.justPressed(Gamepad.R1)) autopilot = !autopilot;
         if (autopilot) {
             if (game.state === TITLE) restart = true;
             else if (game.state === DEAD) restart = canRestart(game);
-            else if (dir < 0 && !isBusy(player)) dir = botMove(bot, game);
+            else {
+                if (dir < 0 && runners[0].alive && !isBusy(player)) dir = botMove(bots[0], game);
+                const p2 = runners[1].player;
+                if (game.count > 1 && dir2 < 0 && runners[1].alive && !isBusy(p2)) dir2 = botMove(bots[1], game, p2);
+            }
         }
         const wasDead = game.state === DEAD, wasTitle = game.state === TITLE;
         const t0 = System.getMilliseconds();
-        updateGame(game, dt, dir, restart);
+        updateGame(game, dt, dir, restart, dir2);
         rows = game.rows;
         const t1 = System.getMilliseconds();
-        if (game.deaths !== lastDeaths) { lastDeaths = game.deaths; logEvent(1); deathBurst(); eagleGrab = false; }
+        for (let i = 0; i < 2; i++) {
+            const r = runners[i];
+            if (wasAlive[i] && !r.alive) { logEvent(1); deathBurst(r); eagleGrab[i] = 0; }
+            wasAlive[i] = r.alive ? 1 : 0;
+        }
         if (game.restarts !== lastRestarts) {
             lastRestarts = game.restarts;
             logEvent(2);
@@ -565,31 +740,37 @@ Loop.run({
             dipRef = -1;
         }
         if (wasTitle && game.state !== TITLE) play(audio, "restart", 0);
-        const hopping = isHopping(player);
-        if (hopping && !wasHopping && game.state !== DEAD) play(audio, "hop", player.x - camX);
-        wasHopping = hopping;
-        if (player.bumps !== lastBumps) {
-            if (player.bumps > lastBumps) play(audio, "bump", player.x - camX);
-            lastBumps = player.bumps;
-        }
-        if (game.state === DEAD && game.cause === EAGLE && !eagleGrab &&
-            game.deadTime >= tuning.eagle.swoopSeconds) {
-            eagleGrab = true;
-            burst(WHITE, 8, game.deathX, .6, game.deathZ, 2.0, 2.5, .8, .11, 4, 2.5);
-        }
-        if (game.state !== DEAD && player.landed) {
-            const kind = rowKind(rows, player.z);
-            if (kind === WATER) {
-                burst(SPLASH, 4, player.x, -.08, player.z, 1.0, 1.6, .3, .07, 9, 1);
-                dipRef = game.riding;
-                dipTime = juice.dipSeconds;
-                play(audio, rows.mType[game.riding] === LILY ? "land_lily" : "land_log", player.x - camX);
+        for (let i = 0; i < 2; i++) {
+            const r = runners[i];
+            if (!r.joined) continue;
+            const p = r.player, px = p.x - camX;
+            const hopping = isHopping(p);
+            if (hopping && !wasHopping[i] && r.alive) play(audio, "hop", px);
+            wasHopping[i] = hopping ? 1 : 0;
+            if (p.bumps !== lastBumps[i]) {
+                if (p.bumps > lastBumps[i]) play(audio, "bump", px);
+                lastBumps[i] = p.bumps;
             }
-            else burst(DUST, 4, player.x, player.ry + .03, player.z + .15, 1.1, 1.1, .32, .08, 6, 3);
-        }
-        if (game.coinTaken) {
-            burst(GOLD, 10, player.x, player.ry + .5, player.z, 1.8, 3.2, .5, .09, 7, 1);
-            play(audio, "coin", player.x - camX);
+            if (!r.alive && r.cause === EAGLE && !eagleGrab[i] && r.deadTime >= tuning.eagle.swoopSeconds) {
+                eagleGrab[i] = 1;
+                burst(WHITE, 8, r.deathX, .6, r.deathZ, 2.0, 2.5, .8, .11, 4, 2.5);
+            }
+            if (r.alive && r.mount >= 0 && !wasMounted[i]) play(audio, "bump", px); // Landed on a head.
+            wasMounted[i] = r.mount >= 0 ? 1 : 0;
+            if (r.alive && p.landed) {
+                const kind = rowKind(rows, p.z);
+                if (kind === WATER) {
+                    burst(SPLASH, 4, p.x, -.08, p.z, 1.0, 1.6, .3, .07, 9, 1);
+                    dipRef = r.riding;
+                    dipTime = juice.dipSeconds;
+                    play(audio, rows.mType[r.riding] === LILY ? "land_lily" : "land_log", px);
+                }
+                else burst(DUST, 4, p.x, p.ry + .03, p.z + .15, 1.1, 1.1, .32, .08, 6, 3);
+            }
+            if (r.coinTaken) {
+                burst(GOLD, 10, p.x, p.ry + .5, p.z, 1.8, 3.2, .5, .09, 7, 1);
+                play(audio, "coin", px);
+            }
         }
         if (dipTime > 0) {
             dipTime = Math.max(0, dipTime - dt);
@@ -622,14 +803,13 @@ Loop.run({
         rebuilt += rebuiltNow;
         frameWork[frame % frameWork.length] = rebuiltNow;
         if (wasDead && game.state !== DEAD) snapCamera();
-        placeMovers();
-        drawPlayer();
-        drawParticles();
-
-        const tx = Math.max(-c.maxTargetX, Math.min(c.maxTargetX, player.rx)) + c.targetOffset[0];
-        camX += (tx - camX) * (1 - Math.exp(-c.followRateX * dt));
-        camZ += (cameraTarget() - camZ) * (1 - Math.exp(-c.followRateZ * dt));
+        followViews(dt);
         placeCamera();
+        findVisibleRows();
+        placeMovers();
+        drawPlayer(runners[0]);
+        drawPlayer(runners[1]);
+        drawParticles();
 
         if (pad.justPressed(Gamepad.L1)) {
             // Debug showcase: every burst type around the chicken, for screenshots.
@@ -641,41 +821,47 @@ Loop.run({
             burst(DUST, 4, x, .1, z + .15, 1.1, 1.1, .32, .08, 6, 3);
         }
         if (pad.justPressed(Gamepad.SELECT)) writeReport();
+        if (pad.justPressed(Gamepad.L2)) {
+            // Debug: toggle a second (autopilot) player and start over, for tests.
+            setPlayers(game, game.count === 1 ? 2 : 1);
+            resetGame(game);
+            rows = game.rows;
+            clearParticles(particles);
+            for (let s = 0; s < n; s++) if (rows.dirty[s]) buildSlot(s);
+            snapCamera();
+        }
         if (pad.justPressed(Gamepad.L3)) {
             // Debug reset: the input test uses it to discard any earlier input.
             resetGame(game);
             rows = game.rows;
             clearParticles(particles);
-            presses = logged = lastDeaths = lastRestarts = ignoredPresses = 0;
+            presses = logged = lastRestarts = ignoredPresses = 0;
             resetFrame = frame;
             for (let s = 0; s < n; s++) if (rows.dirty[s]) buildSlot(s);
             snapCamera();
         }
     },
     draw() {
-        shadowBatch.draw(camera, Render3D.CULL_BACK, lights, shadowStats);
-        let tris = shadowStats.triangles, passes = shadowStats.drawPasses;
-        let culled = shadowStats.culledObjects, submitted = shadowStats.submittedObjects;
-        for (let s = 0; s < n; s++) {
-            slotBatch[s].draw(camera, Render3D.CULL_BACK, lights, stats);
-            tris += stats.triangles; passes += stats.drawPasses;
-            culled += stats.culledObjects; submitted += stats.submittedObjects;
-        }
-        dynamicBatch.draw(camera, Render3D.CULL_BACK, lights, stats);
-        tris += stats.triangles; passes += stats.drawPasses;
-        culled += stats.culledObjects; submitted += stats.submittedObjects;
-        if (particleBatch.size > 0) {
-            particleBatch.draw(camera, Render3D.CULL_BACK, lights, stats);
-            tris += stats.triangles; passes += stats.drawPasses;
-            culled += stats.culledObjects; submitted += stats.submittedObjects;
-        }
-        frameStats.triangles = tris;
-        frameStats.drawPasses = passes;
-        frameStats.culledObjects = culled;
-        frameStats.submittedObjects = submitted;
+        frameStats.triangles = frameStats.drawPasses = frameStats.culledObjects = frameStats.submittedObjects = 0;
+        if (split) {
+            splitFrames++;
+            Screen.setParam(Screen.SCISSOR_BOUNDS, topScissor);
+            drawScene(cameras[0], visLo[0], visHi[0]);
+            Screen.setParam(Screen.SCISSOR_BOUNDS, bottomScissor);
+            drawScene(cameras[1], visLo[1], visHi[1]);
+            Screen.setParam(Screen.SCISSOR_BOUNDS, fullScissor);
+            Draw.rect(0, (height - multi.divider) >> 1, mode.width, multi.divider, Color.new(20, 20, 30));
+        } else drawScene(cameras[0], visLo[0], visHi[0]);
         if (frameStats.triangles > maxTriangles) maxTriangles = frameStats.triangles;
         if (frameStats.drawPasses > maxDrawn) maxDrawn = frameStats.drawPasses;
         if (game.score !== shownScore) { shownScore = game.score; scoreText = "" + shownScore; }
+        for (let i = 0; i < 2; i++) {
+            if (runners[i].score === shownP[i]) continue;
+            shownP[i] = runners[i].score;
+            pText[i] = "" + shownP[i];
+            pW[i] = (i === 0 ? scoreFont : p2Font).getTextSize(pText[i]).width;
+            if (i === 1) p2X = mode.width - hud.x - pW[1];
+        }
         if (game.top !== shownTop) {
             shownTop = game.top;
             topText = "TOP " + shownTop;
@@ -688,13 +874,21 @@ Loop.run({
         }
         if (game.state === TITLE) drawTitle();
         else {
-            coinFont.print(coinX, hud.y, coinText);
-            scoreFont.print(hud.x, hud.y, scoreText);
+            if (game.count > 1) {
+                // Two players: scores in the top corners, coins between them.
+                coinFont.print((coinX + hud.x) / 2, hud.y, coinText);
+                scoreFont.print(hud.x, hud.y, pText[0]);
+                p2Font.print(p2X, hud.y, pText[1]);
+            } else {
+                coinFont.print(coinX, hud.y, coinText);
+                scoreFont.print(hud.x, hud.y, scoreText);
+            }
             smallFont.print(hud.x, hud.y + hud.fontSize + 4, topText);
-            if (panelTime > 0) drawPanel();
+            if (panelTime > 0) { drawPanel(); if (canRestart(game)) drawJoin(); }
         }
-        if (autopilot) smallFont.print(autoX, hud.y + hud.coinSize + 8, autoText);
-        if (inputLocked) smallFont.print(autoX, hud.y + hud.coinSize + hud.topSize + 14, testText);
+        const flagY = hud.y + (game.count > 1 ? hud.fontSize : hud.coinSize) + 8;
+        if (autopilot) smallFont.print(autoX, flagY, autoText);
+        if (inputLocked) smallFont.print(autoX, flagY + hud.topSize + 6, testText);
         if ((canRestart(game) || game.state === TITLE) && !autopilot && (frame & 32))
             smallFont.print(retryX, height * .86, retryText);
         frame++;

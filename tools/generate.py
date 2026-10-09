@@ -53,10 +53,11 @@ def bank(m, top=0, depth=.13):
            m.material("earth", EARTH), translate=(0, top, .5))
 
 
-def chicken():
+def chicken(feather=(.98, .96, .96), wing_rgb=(.92, .89, .92)):
+    # Player 2 is the same bird with yellow feathers.
     m = Mesh()
-    white = m.material("feather", (.98, .96, .96))
-    wing = m.material("wing", (.92, .89, .92))
+    white = m.material("feather", feather)
+    wing = m.material("wing", wing_rgb)
     orange = m.material("orange", (1, .35, .13))
     red = m.material("comb", (.98, .22, .27))
     black = m.material("eye", (.12, .06, .07))
@@ -357,7 +358,7 @@ def shadow(on_road=False):
 def generate(out):
     out.mkdir(parents=True, exist_ok=True)
     builders = {
-        "chicken": chicken, "tree": tree, "tree_tall": lambda: tree(True), "rock": rock,
+        "chicken": chicken, "chicken_p2": lambda: chicken((1.0, .84, .26), (.96, .70, .16)), "tree": tree, "tree_tall": lambda: tree(True), "rock": rock,
         "car_purple": lambda: car((.57, .34, .94)),
         "car_cyan": lambda: car((.08, .73, .87)),
         "car_orange": lambda: car((.99, .32, .15)),

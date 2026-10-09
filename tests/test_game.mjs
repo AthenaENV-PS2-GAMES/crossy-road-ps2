@@ -1,9 +1,10 @@
 // Host tests for the M4 game rules: node tests/test_game.mjs
 import assert from "node:assert/strict";
 import {tuning} from "../game/tuning.js";
-import {UP, DOWN} from "../game/player.js";
+import {UP, DOWN, RIGHT, placeX} from "../game/player.js";
 import {slotOf, rowKind, resetRows, GRASS, ROAD, WATER, RAIL, LOG, LILY, CAR, TRAIN_PASS} from "../game/rows.js";
-import {createGame, updateGame, resetGame, canRestart, runSeed, showTitle, newTop, PLAYING, DEAD, TITLE,
+import {createGame, updateGame, resetGame, canRestart, runSeed, showTitle, newTop, setPlayers, aliveCount,
+    PLAYING, DEAD, TITLE,
     CAR_HIT, TRAIN_HIT, DROWNED, SWEPT, EAGLE} from "../game/game.js";
 
 const DT = 1 / 60;
@@ -31,7 +32,7 @@ test("title screen waits without the eagle, then a hop starts the run", () => {
     step(g, 60 * 30);
     assert.equal(g.state, TITLE);
     assert.equal(g.deaths, 0);
-    assert.equal(g.scrollZ, tuning.player.start[1]);
+    assert.equal(g.runners[0].scrollZ, tuning.player.start[1]);
     hop(g, UP);
     assert.equal(g.state, PLAYING);
     assert.equal(g.player.z, tuning.player.start[1] - 1);
@@ -48,6 +49,156 @@ test("title screen: X starts without hopping; new top is per run", () => {
     assert.equal(newTop(g), g.score > 0);
 });
 
+// Two players: move runner i's player to row z with its scroll line and best
+// row there, so only the distance to the other player can bring the eagle.
+function teleport(g, i, z) {
+    const r = g.runners[i], p = r.player;
+    p.z = p.bestZ = z;
+    placeX(p, p.x);
+    r.scrollZ = z;
+}
+
+test("two players start side by side and move with their own pads", () => {
+    const g = createGame(tuning);
+    showTitle(g);
+    setPlayers(g, 2);
+    const [a, b] = g.runners;
+    assert.equal(a.player.x, -tuning.multi.startGap);
+    assert.equal(b.player.x, tuning.multi.startGap);
+    assert.equal(aliveCount(g), 2);
+    step(g, 12, -1);
+    assert.equal(g.state, TITLE);
+    for (let i = 0; i < 12; i++) updateGame(g, DT, -1, false, i === 0 ? UP : -1);
+    assert.equal(g.state, PLAYING);
+    assert.equal(a.player.z, 0);
+    assert.equal(b.player.z, -1);
+    assert.equal(g.score, 1);
+    assert.equal(b.score, 1);
+    assert.equal(a.score, 0);
+});
+
+test("two players: the one trailing by more than maxGap rows is taken by the eagle", () => {
+    const g = createGame(tuning);
+    setPlayers(g, 2);
+    teleport(g, 1, tuning.multi.maxGap);
+    step(g, 1);
+    assert.equal(g.runners[1].alive, true);
+    teleport(g, 1, tuning.multi.maxGap + 1);
+    step(g, 1);
+    assert.equal(g.runners[1].alive, false);
+    assert.equal(g.runners[1].cause, EAGLE);
+    assert.equal(g.runners[0].alive, true);
+    assert.equal(g.state, PLAYING);
+    assert.equal(g.deaths, 1);
+});
+
+test("two players: the run ends when both are dead; restart brings both back", () => {
+    const g = createGame(tuning);
+    setPlayers(g, 2);
+    teleport(g, 1, tuning.multi.maxGap + 1);
+    step(g, 1);
+    assert.equal(g.state, PLAYING);
+    step(g, 30);
+    assert.ok(g.runners[1].deadTime > .4); // The dead player waits; its clock runs.
+    assert.equal(canRestart(g), false);
+    hop(g, UP); // The survivor still plays.
+    assert.equal(g.player.z, -1);
+    g.runners[0].scrollZ = -20; // Fall far behind the scroll line: eagle.
+    step(g, 1);
+    assert.equal(g.state, DEAD);
+    assert.equal(g.cause, EAGLE);
+    step(g, 120);
+    assert.equal(canRestart(g), true);
+    step(g, 1, -1, true);
+    assert.equal(g.state, PLAYING);
+    assert.equal(aliveCount(g), 2);
+    assert.equal(g.runners[1].player.x, tuning.multi.startGap);
+});
+
+test("player 2 joining at game over plays from the next run", () => {
+    const g = createGame(tuning);
+    hop(g, UP);
+    g.runners[0].scrollZ = -20;
+    step(g, 1);
+    assert.equal(g.state, DEAD);
+    const z = g.player.z;
+    setPlayers(g, 2);
+    assert.equal(g.player.z, z); // The fallen chicken stays where it fell.
+    assert.equal(g.runners[1].alive, false);
+    step(g, 120);
+    step(g, 1, -1, true);
+    assert.equal(aliveCount(g), 2);
+    assert.equal(g.player.x, -tuning.multi.startGap);
+});
+
+// Two players on the start row, one cell apart (x = -1 and +1); a hop of
+// runner 0 to the right lands next to runner 1, a second one on its head.
+function pair() {
+    const g = createGame(tuning);
+    setPlayers(g, 2);
+    const go = (d0, d1 = -1) => {
+        for (let i = 0; i < 12; i++) updateGame(g, DT, i === 0 ? d0 : -1, false, i === 0 ? d1 : -1);
+    };
+    return [g, go];
+}
+
+test("riding: hopping onto the other player lands on its head", () => {
+    const [g, go] = pair();
+    const [a, b] = g.runners;
+    go(RIGHT);
+    go(RIGHT);
+    assert.equal(a.mount, 1);
+    assert.equal(a.player.x, b.player.x);
+    assert.ok(Math.abs(a.player.ry - (b.player.ry + tuning.multi.headHeight)) < 1e-6);
+    assert.equal(b.mount, -1);
+});
+
+test("riding: the rider is carried without points, then hops off", () => {
+    const [g, go] = pair();
+    const [a, b] = g.runners;
+    go(RIGHT); go(RIGHT);
+    go(-1, UP);
+    go(-1, UP);
+    assert.equal(a.mount, 1);
+    assert.equal(a.player.z, -2); // Carried along.
+    assert.equal(b.score, 2);
+    assert.equal(a.score, 0); // No points for the ride.
+    go(UP); // Hops off forward; its score is its own row again.
+    assert.equal(a.mount, -1);
+    assert.equal(a.player.z, -3);
+    assert.equal(a.score, 3);
+    assert.equal(a.player.ry, g.world.groundY(-3));
+});
+
+test("riding: a rider dies with the player it rides on", () => {
+    const [g, go] = pair();
+    const [a, b] = g.runners;
+    go(RIGHT); go(RIGHT);
+    b.scrollZ = -20; // The bottom player falls far behind: the eagle takes it.
+    step(g, 1);
+    assert.equal(b.alive, false);
+    assert.equal(a.alive, false);
+    assert.equal(a.cause, EAGLE);
+    assert.equal(g.state, DEAD);
+});
+
+test("riding: the bottom player cannot be stacked on by a hop into a tree", () => {
+    const [g, go] = pair();
+    const [a] = g.runners;
+    go(RIGHT); go(RIGHT);
+    // The start row's wall behind (z = 1) is all trees: a hop down bumps, the rider stays on top.
+    go(DOWN);
+    assert.equal(a.mount, 1);
+});
+
+test("solo: the second runner never plays", () => {
+    const g = createGame(tuning);
+    for (let i = 0; i < 12; i++) updateGame(g, DT, -1, false, i === 0 ? UP : -1);
+    assert.equal(g.state, PLAYING);
+    assert.equal(g.runners[1].alive, false);
+    assert.equal(g.runners[1].player.z, 0);
+});
+
 test("landing in open water drowns", () => {
     const g = createGame(tuning);
     force(g, -1, WATER, 1, []);
@@ -60,7 +211,7 @@ test("landing on a log snaps to a log cell and rides with it", () => {
     const s = force(g, -1, WATER, 1, [[LOG, .3, 1.5]]);
     hop(g, UP);
     assert.equal(g.state, PLAYING);
-    assert.equal(g.riding, s * g.rows.M);
+    assert.equal(g.runners[0].riding, s * g.rows.M);
     const log = g.rows.mx[s * g.rows.M];
     const offset = g.player.x - (log - 1.5 + .5);
     assert.ok(Math.abs(offset - Math.round(offset)) < 1e-4, "on a cell centre, offset " + offset);

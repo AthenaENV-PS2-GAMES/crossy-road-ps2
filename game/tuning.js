@@ -25,7 +25,7 @@ export const tuning = {
     },
     ground: {grassY: .065, roadY: .01, railY: .07, waterY: -.12, logTop: .10, lilyTop: -.07},
     rows: {
-        slots: 24, // Recycled window of rows.
+        slots: 36, // Recycled window of rows: reaches multi.maxGap + a split view behind the leader.
         ahead: 16, // Rows generated in front of the best row.
         startSafe: 2, // Rows -1..-startSafe in front of the start are grass.
         decorX: 5, // Trees fill columns minX-decorX..maxX+decorX on grass rows (view is about +-9.5).
@@ -77,12 +77,14 @@ export const tuning = {
     hud: {font: "fonts/retro.ttf", fontSize: 32, x: 18, y: 14, topSize: 16, coinSize: 24,
         title: ["CHICKEN", "HOP"], titleSize: 48}, // Title screen lines (font: digits, A-Z, space).
     pools: {
-        grass: 24, grass_alt: 24, grass_b: 24, grass_alt_b: 24, ripple: 24, road: 24, road_marked: 24, water: 24, rail: 24,
-        tree: 150, tree_tall: 60, rock: 30,
-        car_purple: 22, car_cyan: 22, car_orange: 22, truck: 20,
-        log2: 24, log3: 24, log4: 20,
-        train_loco: 6, train_wagon: 24, signal: 6, signal_light: 6,
-        lily: 30, coin: 16,
+        // Ground pools: one per slot. Row content: sized for a 36-row window.
+        grass: 36, grass_alt: 36, grass_b: 36, grass_alt_b: 36, ripple: 36, road: 36, road_marked: 36,
+        water: 36, rail: 36,
+        tree: 225, tree_tall: 90, rock: 45,
+        car_purple: 33, car_cyan: 33, car_orange: 33, truck: 40,
+        log2: 36, log3: 36, log4: 30,
+        train_loco: 9, train_wagon: 36, signal: 9, signal_light: 9,
+        lily: 45, coin: 24,
     },
     budgets: {
         // M1 set 8,000 source triangles for a static scene; M4 is judged by frame
@@ -96,6 +98,15 @@ export const tuning = {
         counts: [36, 24, 12, 16, 6], // white, splash, gold, dust, red cube slots.
     },
     coin: {height: .42, spin: 3.2, bob: .06},
+    multi: {
+        startGap: 1, // Two players start at x = -1 and +1.
+        maxGap: 12, // Rows the trailing player may be behind the other before the eagle comes.
+        focusOffset: -1.2, // Camera focus ahead of each player in two-player views (solo: camera.targetOffset).
+        maxDrift: 1.5, // Rows the scroll line may pull a two-player view ahead of its player.
+        mergeEpsilon: .06, // Split views closer than this (cells) are drawn as one.
+        divider: 3, // Divider line thickness, pixels.
+        headHeight: .98, // A player hopping onto the other rides on its head, this high.
+    },
     audio: {
         volume: 90, // Sound.setSfxVolume
         panWidth: 8, panMax: 70, // Cells from the camera centre to full pan; pan cap (of 100).

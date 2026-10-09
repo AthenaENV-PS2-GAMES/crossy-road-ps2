@@ -17,6 +17,24 @@
     ],
     "materials": 5
   },
+  "chicken_p2": {
+    "vertices": 136,
+    "triangles": 204,
+    "expanded_vertices": 612,
+    "bounds": [
+      [
+        -0.3045,
+        0.0,
+        -0.37
+      ],
+      [
+        0.3045,
+        1.0999999999999999,
+        0.22499999999999998
+      ]
+    ],
+    "materials": 5
+  },
   "tree": {
     "vertices": 24,
     "triangles": 38,
