@@ -166,6 +166,12 @@ def log(length):
     m.box((length - .12, .07, .58), top, translate=(0, .065, 0))
     for x in (-(length - .12) / 2 - .01, (length - .12) / 2 + .01):
         m.box((.02, .15, .50), end, translate=(x, -.04, 0))
+    # Foam where the water meets the log ends.
+    foam = m.material("foam", (.90, .97, 1.0))
+    for side in (-1, 1):
+        x = side * ((length - .12) / 2 + .07)
+        m.plane(.16, .52, foam, translate=(x, -.108, 0))
+        m.plane(.10, .16, foam, translate=(x + side * .13, -.108, side * .14))
     return m
 
 
@@ -268,11 +274,50 @@ def particle(rgb):
     return m
 
 
-def row(kind, alternate=False):
+def grass_details(m, seed):
+    """Tufts and flowers between the cell centres (where trees, coins and the
+    chicken stand), nine per row across the visible width."""
+    rng = random.Random(seed)
+    tuft = m.material("tuft", (.50, .74, .20))
+    tuft_light = m.material("tuft_light", (.80, .96, .42))
+    petals = [m.material("petal_white", (.98, .97, .92)), m.material("petal_yellow", (1, .86, .25)),
+              m.material("petal_pink", (.98, .55, .70))]
+    used = set()
+    while len(used) < 9:
+        cell = rng.randint(-10, 10)
+        if cell in used:
+            continue
+        used.add(cell)
+        x = cell + rng.choice((-1, 1)) * rng.uniform(.36, .46)
+        z = rng.uniform(-.40, .40)
+        if rng.random() < .65:
+            h = rng.uniform(.11, .17)
+            m.box((.15, h, .08), tuft, translate=(x, .065 + h / 2, z))
+            m.box((.08, h * .7, .14), tuft_light, translate=(x + .05, .065 + h * .35, z + .02))
+        else:
+            m.box((.04, .10, .04), tuft, translate=(x, .115, z))
+            m.box((.13, .06, .13), rng.choice(petals), translate=(x, .18, z))
+
+
+def ripple():
+    """Light streaks on the water, periodic every 4 cells so main.js can
+    scroll the instance by up to 4 cells and wrap without a jump."""
+    m = Mesh()
+    streak = m.material("ripple", (.62, .88, 1.0))
+    rng = random.Random(11)
+    shapes = [(rng.uniform(0, 4), rng.uniform(-.36, .36), rng.choice((.35, .5, .7))) for _ in range(2)]
+    for k in range(-5, 5):
+        for x, z, w in shapes:
+            m.plane(w, .06, streak, translate=(k * 4 + x, -.114, z))
+    return m
+
+
+def row(kind, alternate=False, variant=0):
     m = Mesh()
     if kind == "grass":
         ground(m, "grass", GRASS_ALT if alternate else GRASS, height=.065)
         bank(m)
+        grass_details(m, 40 + 2 * variant + alternate)
     elif kind in ("road", "road_marked"):
         ground(m, "asphalt", ASPHALT)
         bank(m, -.002)
@@ -327,6 +372,8 @@ def generate(out):
         "particle_dust": lambda: particle((.80, .86, .62)),
         "particle_red": lambda: particle((.96, .25, .28)),
         "grass": lambda: row("grass"), "grass_alt": lambda: row("grass", True),
+        "grass_b": lambda: row("grass", variant=1), "grass_alt_b": lambda: row("grass", True, 1),
+        "ripple": ripple,
         "road": lambda: row("road"), "road_marked": lambda: row("road_marked"),
         "water": lambda: row("water"), "rail": lambda: row("rail"),
         "shadow_grass": shadow, "shadow_road": lambda: shadow(True),

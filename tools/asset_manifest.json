@@ -144,58 +144,58 @@
     "materials": 7
   },
   "log2": {
-    "vertices": 36,
-    "triangles": 50,
-    "expanded_vertices": 150,
+    "vertices": 52,
+    "triangles": 58,
+    "expanded_vertices": 174,
     "bounds": [
       [
-        -0.96,
+        -1.1900000000000002,
         -0.14,
         -0.32
       ],
       [
-        1.115,
+        1.1900000000000002,
         0.1,
         0.45
       ]
     ],
-    "materials": 4
+    "materials": 5
   },
   "log3": {
-    "vertices": 36,
-    "triangles": 50,
-    "expanded_vertices": 150,
+    "vertices": 52,
+    "triangles": 58,
+    "expanded_vertices": 174,
     "bounds": [
       [
-        -1.46,
+        -1.6900000000000002,
         -0.14,
         -0.32
       ],
       [
-        1.6150000000000002,
+        1.6900000000000002,
         0.1,
         0.45
       ]
     ],
-    "materials": 4
+    "materials": 5
   },
   "log4": {
-    "vertices": 36,
-    "triangles": 50,
-    "expanded_vertices": 150,
+    "vertices": 52,
+    "triangles": 58,
+    "expanded_vertices": 174,
     "bounds": [
       [
-        -1.96,
+        -2.1899999999999995,
         -0.14,
         -0.32
       ],
       [
-        2.115,
+        2.1899999999999995,
         0.1,
         0.45
       ]
     ],
-    "materials": 4
+    "materials": 5
   },
   "train_loco": {
     "vertices": 48,
@@ -414,9 +414,9 @@
     "materials": 1
   },
   "grass": {
-    "vertices": 18,
-    "triangles": 38,
-    "expanded_vertices": 114,
+    "vertices": 162,
+    "triangles": 254,
+    "expanded_vertices": 762,
     "bounds": [
       [
         -16.0,
@@ -425,16 +425,16 @@
       ],
       [
         16.0,
-        0.065,
+        0.23271910982720984,
         0.5
       ]
     ],
-    "materials": 3
+    "materials": 8
   },
   "grass_alt": {
-    "vertices": 18,
-    "triangles": 38,
-    "expanded_vertices": 114,
+    "vertices": 162,
+    "triangles": 254,
+    "expanded_vertices": 762,
     "bounds": [
       [
         -16.0,
@@ -443,11 +443,65 @@
       ],
       [
         16.0,
-        0.065,
+        0.22205885809112597,
         0.5
       ]
     ],
-    "materials": 3
+    "materials": 8
+  },
+  "grass_b": {
+    "vertices": 162,
+    "triangles": 254,
+    "expanded_vertices": 762,
+    "bounds": [
+      [
+        -16.0,
+        -0.13,
+        -0.5
+      ],
+      [
+        16.0,
+        0.22476427985517972,
+        0.5
+      ]
+    ],
+    "materials": 8
+  },
+  "grass_alt_b": {
+    "vertices": 162,
+    "triangles": 254,
+    "expanded_vertices": 762,
+    "bounds": [
+      [
+        -16.0,
+        -0.13,
+        -0.5
+      ],
+      [
+        16.0,
+        0.23460085446475587,
+        0.5
+      ]
+    ],
+    "materials": 8
+  },
+  "ripple": {
+    "vertices": 80,
+    "triangles": 40,
+    "expanded_vertices": 120,
+    "bounds": [
+      [
+        -18.440481785960724,
+        -0.114,
+        0.01303611797795709
+      ],
+      [
+        18.059518214039276,
+        -0.114,
+        0.2856328578510663
+      ]
+    ],
+    "materials": 1
   },
   "road": {
     "vertices": 12,

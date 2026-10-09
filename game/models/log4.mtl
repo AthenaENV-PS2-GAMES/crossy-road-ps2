@@ -9,3 +9,6 @@ Kd 0.74 0.52 0.4
 
 newmtl log_shadow
 Kd 0.25 0.6 0.8
+
+newmtl foam
+Kd 0.9 0.97 1

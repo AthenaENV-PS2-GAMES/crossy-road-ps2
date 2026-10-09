@@ -17,5 +17,6 @@ for destination in args.destinations:
     shutil.copytree(source / "models", destination / "models", dirs_exist_ok=True)
     shutil.copytree(source / "fonts", destination / "fonts", dirs_exist_ok=True)
     shutil.copytree(source / "sfx", destination / "sfx", dirs_exist_ok=True)
+    shutil.copytree(source / "music", destination / "music", dirs_exist_ok=True)
     shutil.copy2(args.elf, destination / "athena.elf")
     print(destination)

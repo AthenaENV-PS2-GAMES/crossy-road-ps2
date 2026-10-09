@@ -1,6 +1,7 @@
 // Sound effects: SPU2 ADPCM samples from sfx/ (tools/make_sfx.py), played
-// with a pan from the source's screen position. Audio is optional: if a
-// sample cannot be loaded the game runs silently instead of stopping.
+// with a pan from the source's screen position. Streams from music/: the
+// title loop and the play ambience, one at a time. Audio is optional: if a
+// file cannot be loaded the game runs without it instead of stopping.
 const NAMES = ["hop", "bump", "land_log", "land_lily", "coin", "squash", "splash", "bell", "train",
     "eagle", "restart"];
 
@@ -14,9 +15,30 @@ export function createAudio(t) {
             failed = failed || name + ": " + (e.code || e.message);
         }
     }
-    if (failed) console.log("audio disabled for some samples (" + failed + ")");
+    const streams = {};
+    for (const name of ["title", "ambience"]) {
+        try {
+            const s = new Sound.Stream("music/" + name + ".wav");
+            s.loop = true;
+            streams[name] = s;
+        } catch (e) {
+            failed = failed || name + ": " + (e.code || e.message);
+        }
+    }
+    if (failed) console.log("audio disabled for some files (" + failed + ")");
     Sound.setSfxVolume(a.volume);
-    return { sfx, a, played: 0 };
+    return { sfx, streams, a, played: 0, track: "" };
+}
+
+// Switches the stream to `name` ("title", "ambience", or "" for silence),
+// fading in; does nothing when it already plays.
+export function track(audio, name) {
+    if (audio.track === name) return;
+    const a = audio.a, old = audio.streams[audio.track], next = audio.streams[name];
+    audio.track = name;
+    if (!next) { if (old) old.pause({ fade: a.fadeMs }); return; }
+    Sound.setVolume(a.streamVolume[name]);
+    next.play({ fade: a.fadeMs }); // Replaces the old stream (audsrv has one stream voice).
 }
 
 // x: world X of the source relative to the camera target; volume 0..1.

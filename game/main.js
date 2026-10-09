@@ -3,15 +3,15 @@ import { UP, DOWN, LEFT, RIGHT, isBusy, isHopping } from "./player.js";
 import { POOLS, GRASS, ROAD, WATER, RAIL, LILY, TRAIN_IDLE, TRAIN_WARN, TRAIN_PASS, slotOf, rowKind, trainLength }
     from "./rows.js";
 import {
-    createGame, updateGame, resetGame, canRestart, runSeed, DEAD, CAR_HIT, TRAIN_HIT,
-    DROWNED, SWEPT, EAGLE
+    createGame, updateGame, resetGame, canRestart, runSeed, showTitle, newTop, DEAD, TITLE, CAR_HIT,
+    TRAIN_HIT, DROWNED, SWEPT, EAGLE
 } from "./game.js";
 import { createBot, botMove } from "./bot.js";
 import {
     createParticles, emit, updateParticles, particleScale, clearParticles, COLORS,
     WHITE, SPLASH, GOLD, DUST, RED
 } from "./particles.js";
-import { createAudio, play, falloff } from "./audio.js";
+import { createAudio, play, falloff, track } from "./audio.js";
 
 const mode = Screen.getMode();
 const height = mode.height * (mode.interlace === Screen.INTERLACED && mode.field === Screen.FRAME ? 2 : 1);
@@ -42,7 +42,7 @@ const HIDDEN = -50; // Instances parked below the view (trains between passes, l
 // instances are in no batch until a row slot takes them: each slot has its
 // own Render3D.Batch, rebuilt only when the slot is regenerated, so parked
 // instances cost nothing per frame (no culling, no transform).
-const GROUND = ["grass", "grass_alt", "road", "road_marked", "water", "rail"];
+const GROUND = ["grass", "grass_alt", "grass_b", "grass_alt_b", "road", "road_marked", "water", "rail", "ripple"];
 const poolNames = GROUND.concat(POOLS);
 const poolItems = [], poolFree = [], poolTop = new Int32Array(poolNames.length);
 let instanceCount = 0;
@@ -154,6 +154,7 @@ const slotTrain = new Int32Array(n * TRAIN_PARTS), slotLight = new Int32Array(n)
 const moverY = new Float32Array(4); // CAR, TRUCK, LOG, LILY (logs and pads float at row y)
 moverY[0] = moverY[1] = g0.roadY;
 const slotCoin = new Int32Array(n).fill(-1), coinShown = new Uint8Array(n);
+const slotRipple = new Int32Array(n).fill(-1); // Water streaks, scrolled with the current.
 const REBUILD_BUDGET = 8; // Slots rebuilt per update; a new run needs 3 updates instead of one long one.
 
 // Moving instances (vehicles, logs, trains) are positioned with one
@@ -175,6 +176,7 @@ function releaseSlot(s) {
     for (let j = 0; j < builtMovers[s]; j++) giveItem(slotMover[s * M + j]);
     builtMovers[s] = 0;
     if (slotCoin[s] >= 0) { giveItem(slotCoin[s]); slotCoin[s] = -1; }
+    if (slotRipple[s] >= 0) { giveItem(slotRipple[s]); slotRipple[s] = -1; }
     slotBatch[s].clear();
     builtKind[s] = -1;
     movingDirty = true;
@@ -189,7 +191,9 @@ function addStatic(s, pool, x, y, z) {
 function buildSlot(s) {
     releaseSlot(s);
     const z = rows.z[s], kind = rows.kind[s], b = slotBatch[s];
-    const ground = kind === GRASS ? (rows.alt[s] ? P.grass_alt : P.grass) :
+    // Two grass detail layouts, picked per row so tufts and flowers do not line up.
+    const b2 = (Math.imul(z, 0x9E3779B1) >>> 0) & 0x10000;
+    const ground = kind === GRASS ? (rows.alt[s] ? (b2 ? P.grass_alt_b : P.grass_alt) : (b2 ? P.grass_b : P.grass)) :
         kind === ROAD ? (rows.marked[s] ? P.road_marked : P.road) : kind === WATER ? P.water : P.rail;
     slotGround[s] = takeItem(ground);
     b.add(item(slotGround[s]).setPosition(0, 0, z));
@@ -208,6 +212,10 @@ function buildSlot(s) {
             slotMover[i] = h;
         }
         builtMovers[s] = rows.count[s];
+        if (kind === WATER) {
+            slotRipple[s] = takeItem(P.ripple);
+            b.add(item(slotRipple[s]).setPosition(0, 0, z));
+        }
     } else {
         const yaw = rows.trainDir[s] > 0 ? 0 : Math.PI;
         for (let j = 0; j < TRAIN_PARTS; j++) {
@@ -276,6 +284,16 @@ function placeMovers() {
         const base = builtKind[s] === ROAD ? g0.roadY : g0.grassY;
         it.setPosition(rows.coinX[s], base + cn.height + bob, rows.z[s]).setRotationEuler(0, angle, 0);
     }
+    // Water streaks drift with the current (or slowly on still rows) and wrap
+    // every 4 cells, the ripple model's period.
+    const seconds = frame / 60;
+    for (let s = 0; s < n; s++) {
+        if (slotRipple[s] < 0) continue;
+        const v = rows.vel[s], drift = v !== 0 ? v * juice.rippleDrift : juice.rippleStill;
+        let x = (seconds * drift + rows.z[s] * 1.37) % 4;
+        if (x < 0) x += 4;
+        item(slotRipple[s]).setPosition(x - 2, 0, rows.z[s]);
+    }
     for (let s = 0; s < n; s++) {
         if (builtKind[s] !== RAIL) continue;
         // Lights blink while warning and stay on while the train passes.
@@ -301,27 +319,33 @@ for (const f of [scoreFont, smallFont]) {
     f.color = Color.new(255, 255, 255);
     f.outline = 2;
     f.outlineColor = Color.new(20, 20, 30);
-    f.preload("0123456789 TOPRESXAU", { budgetMs: 0 }); // Covers all HUD texts.
+    f.preload("0123456789 ABCDEFGHIJKLMNOPQRSTUVWXYZ", { budgetMs: 0 });
 }
-let shownScore = -1, shownTop = -1, scoreText = "", topText = "";
+let shownScore = -1, shownTop = -1, scoreText = "", topText = "", topW = 0;
 const coinFont = new Font(hud.font, { size: hud.coinSize });
 coinFont.color = Color.new(255, 214, 40);
 coinFont.outline = 2;
 coinFont.outlineColor = Color.new(60, 30, 0);
-coinFont.preload("0123456789", { budgetMs: 0 });
+coinFont.preload("0123456789 NEWTOP", { budgetMs: 0 });
 let shownCoins = -1, coinText = "", coinX = 0;
+const titleFont = new Font(hud.font, { size: hud.titleSize });
+titleFont.color = Color.new(255, 255, 255);
+titleFont.outline = 3;
+titleFont.outlineColor = Color.new(20, 20, 30);
+titleFont.preload(hud.title.join(""), { budgetMs: 0 });
+const titleX = hud.title.map(line => (mode.width - titleFont.getTextSize(line).width) / 2);
 const retryText = "PRESS X", autoText = "AUTO", testText = "TEST";
 const retryX = (mode.width - smallFont.getTextSize(retryText).width) / 2;
 const autoX = mode.width - 18 - smallFont.getTextSize(autoText).width;
 
 const audio = createAudio(tuning);
-let wasHopping = false, lastBumps = 0;
+let wasHopping = false, lastBumps = 0, panelTime = 0;
 
 let camX = 0, camZ = 0;
 // Juice: the log/pad landed on dips (dipRef = its mover index), the camera
 // shakes on hits.
 const juice = tuning.juice;
-let dipRef = -1, dipTime = 0, dipNow = 0;
+let dipRef = -1, dipTime = 0, dipNow = 0, idleTime = 0;
 const lightOn = new Uint8Array(n), trainHeard = new Uint8Array(n);
 function cameraTarget() {
     const focusZ = Math.min(player.rz, game.scrollZ);
@@ -369,12 +393,48 @@ function drawPlayer() {
         }
         return;
     }
+    // Idle: the chicken breathes; on the title screen it also looks around.
+    let scaleY = player.scaleY, yaw = player.yaw;
+    if (!isBusy(player)) {
+        idleTime += 1 / 60;
+        scaleY *= 1 + juice.breathe * Math.sin(idleTime * juice.breatheRate);
+        if (game.state === TITLE) yaw += juice.lookYaw * Math.sin(idleTime * juice.lookRate);
+    } else idleTime = 0;
     chicken.setPosition(player.rx, player.ry - (game.riding >= 0 && game.riding === dipRef ? dipNow : 0), player.rz)
-        .setScale(1, player.scaleY, 1).setRotationEuler(0, player.yaw, 0);
+        .setScale(1, scaleY, 1).setRotationEuler(0, yaw, 0);
     const base = game.world.groundY(Math.round(player.rz));
     const lift = 1 - .35 * Math.min(1, Math.max(0, player.ry - base) / tuning.player.hopHeight);
     const shadow = kind === GRASS ? chickenShadowGrass : chickenShadowRoad;
     shadow.setPosition(player.rx + .12, base + .025, player.rz + .10).setScale(.52 * lift, 1, .55 * lift);
+}
+
+// --- Title screen and game-over panel ------------------------------------------
+const panelW = 260, panelH = 128, panelX = (mode.width - panelW) / 2, panelY = height * .30;
+const panelLabels = ["SCORE", "TOP"].map(t => [t, smallFont.getTextSize(t).width]);
+const newTopText = "NEW TOP", newTopX = panelX + (panelW - coinFont.getTextSize(newTopText).width) / 2;
+let panelScore = -1, panelText = "", panelTextW = 0;
+function drawTitle() {
+    const lineH = hud.titleSize + 6, y0 = height * .16 + Math.sin(frame * .05) * 4;
+    for (let i = 0; i < hud.title.length; i++) titleFont.print(titleX[i], y0 + i * lineH, hud.title[i]);
+    if (game.top > 0) smallFont.print((mode.width - topW) / 2, y0 + hud.title.length * lineH + 8, topText);
+}
+function drawPanel() {
+    // Fades in; a dark translucent card with the run's score and the best.
+    const u = Math.min(1, panelTime / juice.panelFade);
+    const y = panelY + (1 - u) * 24;
+    Draw.rect(panelX, y, panelW, panelH, Color.new(20, 24, 40, Math.round(80 * u)));
+    Draw.rect(panelX, y, panelW, 4, Color.new(255, 214, 40, Math.round(128 * u)));
+    if (u < 1) return;
+    if (panelScore !== game.score) {
+        panelScore = game.score;
+        panelText = "" + panelScore;
+        panelTextW = scoreFont.getTextSize(panelText).width;
+    }
+    smallFont.print(panelX + (panelW - panelLabels[0][1]) / 2, y + 14, panelLabels[0][0]);
+    scoreFont.print(panelX + (panelW - panelTextW) / 2, y + 34, panelText);
+    if (newTop(game)) {
+        if (frame & 16) coinFont.print(newTopX, y + 86, newTopText);
+    } else smallFont.print(panelX + (panelW - topW) / 2, y + 92, topText);
 }
 
 // --- Instrumentation -------------------------------------------------------------
@@ -467,6 +527,7 @@ function writeReport() {
 }
 
 for (let s = 0; s < n; s++) buildSlot(s);
+showTitle(game);
 snapCamera();
 placeCamera();
 
@@ -486,10 +547,11 @@ Loop.run({
         }
         if (pad.justPressed(Gamepad.R1)) autopilot = !autopilot;
         if (autopilot) {
-            if (game.state === DEAD) restart = canRestart(game);
+            if (game.state === TITLE) restart = true;
+            else if (game.state === DEAD) restart = canRestart(game);
             else if (dir < 0 && !isBusy(player)) dir = botMove(bot, game);
         }
-        const wasDead = game.state === DEAD;
+        const wasDead = game.state === DEAD, wasTitle = game.state === TITLE;
         const t0 = System.getMilliseconds();
         updateGame(game, dt, dir, restart);
         rows = game.rows;
@@ -502,6 +564,7 @@ Loop.run({
             play(audio, "restart", 0);
             dipRef = -1;
         }
+        if (wasTitle && game.state !== TITLE) play(audio, "restart", 0);
         const hopping = isHopping(player);
         if (hopping && !wasHopping && game.state !== DEAD) play(audio, "hop", player.x - camX);
         wasHopping = hopping;
@@ -533,6 +596,9 @@ Loop.run({
             dipNow = juice.logDip * Math.sin(Math.PI * (1 - dipTime / juice.dipSeconds));
         } else dipNow = 0;
         if (shakeTime > 0) shakeTime = Math.max(0, shakeTime - dt);
+        // Music on the title and game-over screens, ambience while playing.
+        track(audio, game.state === TITLE || canRestart(game) ? "title" : "ambience");
+        if (canRestart(game)) panelTime += dt; else panelTime = 0;
         updateParticles(particles, dt);
         let rebuiltNow = 0, dirty = 0;
         for (let s = 0; s < n; s++) dirty += rows.dirty[s];
@@ -610,18 +676,27 @@ Loop.run({
         if (frameStats.triangles > maxTriangles) maxTriangles = frameStats.triangles;
         if (frameStats.drawPasses > maxDrawn) maxDrawn = frameStats.drawPasses;
         if (game.score !== shownScore) { shownScore = game.score; scoreText = "" + shownScore; }
-        if (game.top !== shownTop) { shownTop = game.top; topText = "TOP " + shownTop; }
+        if (game.top !== shownTop) {
+            shownTop = game.top;
+            topText = "TOP " + shownTop;
+            topW = smallFont.getTextSize(topText).width;
+        }
         if (game.coins !== shownCoins) {
             shownCoins = game.coins;
             coinText = "" + shownCoins;
             coinX = mode.width - hud.x - coinFont.getTextSize(coinText).width;
         }
-        coinFont.print(coinX, hud.y, coinText);
-        scoreFont.print(hud.x, hud.y, scoreText);
-        smallFont.print(hud.x, hud.y + hud.fontSize + 4, topText);
+        if (game.state === TITLE) drawTitle();
+        else {
+            coinFont.print(coinX, hud.y, coinText);
+            scoreFont.print(hud.x, hud.y, scoreText);
+            smallFont.print(hud.x, hud.y + hud.fontSize + 4, topText);
+            if (panelTime > 0) drawPanel();
+        }
         if (autopilot) smallFont.print(autoX, hud.y + hud.coinSize + 8, autoText);
         if (inputLocked) smallFont.print(autoX, hud.y + hud.coinSize + hud.topSize + 14, testText);
-        if (canRestart(game) && !autopilot && (frame & 32)) smallFont.print(retryX, height * .86, retryText);
+        if ((canRestart(game) || game.state === TITLE) && !autopilot && (frame & 32))
+            smallFont.print(retryX, height * .86, retryText);
         frame++;
         const time = Loop.getStats(); // Instrumentation allocates one small stats object.
         cpu[cpuNext] = time.cpuMs;

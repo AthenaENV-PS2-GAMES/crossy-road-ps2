@@ -1,8 +1,12 @@
-"""Original M5 sound effects, synthesised from scratch (stdlib only, no samples).
+"""Original M5 audio, synthesised from scratch (stdlib only, no samples).
 
-Writes 16-bit mono WAVs to a temporary folder and converts them to the SPU2
-ADPCM .adp files Sound.Sfx loads with AthenaEnv's tools/wav2adp.js. Set
-ATHENA_ENV if AthenaEnv is not in ~/AthenaEnv.
+Sound effects: 16-bit mono WAVs written to a temporary folder and converted
+to the SPU2 ADPCM .adp files Sound.Sfx loads, with AthenaEnv's
+tools/wav2adp.js (set ATHENA_ENV if AthenaEnv is not in ~/AthenaEnv).
+
+Streams (game/music): a chiptune loop for the title and game-over screens and
+an ambience loop (wind, birds) for play, kept as 22050 Hz mono WAV so audsrv
+streams them without decoding on the EE.
 """
 import argparse
 import math
@@ -176,6 +180,88 @@ def restart():
                (.12, sweep(784, 784, .14, "square", decay=2.5, gain=.5)))
 
 
+def midi(note):
+    return 440 * 2 ** ((note - 69) / 12)
+
+
+def tone(freq, length, shape, decay=3, gain=1, duty=.5):
+    n, out = seconds(length), []
+    for i in range(n):
+        ph = (i * freq / RATE) % 1
+        if shape == "pulse":
+            v = .5 if ph < duty else -.5
+        else:  # tri
+            v = 4 * abs(ph - .5) - 1
+        t = i / RATE
+        out.append(v * min(1, t / .004) * math.exp(-t * decay) * min(1, (n - i) / 60) * gain)
+    return out
+
+
+def title_music():
+    """8 bars at 150 bpm (12.8 s, loops exactly): C, Am, F, G."""
+    step = .2  # Eighth note.
+    lead = [72, 76, 79, 76, 84, None, 79, None, 76, None, 79, 81, 79, 76, 72, None,
+            69, 72, 76, 72, 81, None, 76, None, 72, None, 76, 77, 76, 72, 69, None,
+            65, 69, 72, 69, 77, None, 72, None, 69, None, 72, 74, 72, 69, 65, None,
+            67, 71, 74, 71, 79, None, 74, None, 74, None, 71, 74, 79, 77, 76, 74]
+    roots = [48, 45, 41, 43]
+    parts = []
+    for k, note in enumerate(lead):
+        t = k * step
+        if note is not None:
+            parts.append((t, tone(midi(note), .19, "pulse", decay=6, gain=.30, duty=.25)))
+            parts.append((t + .1, tone(midi(note + 12), .09, "pulse", decay=12, gain=.06, duty=.5)))  # Echo.
+        root = roots[k // 16] + (12 if k % 2 else 0)
+        parts.append((t, tone(midi(root), .19, "tri", decay=4, gain=.45)))
+        if k % 4 == 0:  # Kick on the beat.
+            parts.append((t, sweep(130, 45, .12, "sine", decay=2.5, attack=.001, gain=.55)))
+        if k % 2 == 1:  # Off-beat hat.
+            parts.append((t, noise(.04, decay=4, cutoff=.9, gain=.12, seed=100 + k)))
+        if k % 8 == 4:  # Snare.
+            parts.append((t, noise(.12, decay=3, cutoff=.5, gain=.28, seed=200 + k)))
+    out = mix(*parts)
+    total = seconds(len(lead) * step)
+    for i in range(total, len(out)):  # Fold the tail back onto the start: seamless loop.
+        out[i - total] += out[i]
+    return out[:total]
+
+
+def ambience():
+    """24 s loop: gusting wind (periodic in the loop) and scattered birdsong."""
+    length = 24
+    n = seconds(length)
+    rng = random.Random(30)
+    out, y1, y2 = [], 0.0, 0.0
+    for i in range(n):
+        t = i / RATE
+        gust = .55 + .30 * math.sin(TAU * t / 8) + .15 * math.sin(TAU * t / 6 + 1)
+        y1 += .015 * (rng.uniform(-1, 1) - y1)
+        y2 += .04 * (y1 - y2)
+        out.append(y2 * gust * 9)
+    fade = seconds(1.5)  # Crossfade the noise seam.
+    for i in range(fade):
+        u = i / fade
+        out[i] = out[i] * u + out[n - fade + i] * (1 - u)
+    birds = []
+    t = .8
+    while t < length - 1.2:
+        f = rng.uniform(2300, 3800)
+        for k in range(rng.randint(2, 4)):
+            chirp = []
+            m = seconds(rng.uniform(.06, .11))
+            ph = 0.0
+            for i in range(m):
+                u = i / m
+                ph += TAU * f * (1 + .35 * math.sin(math.pi * u)) / RATE
+                chirp.append(math.sin(ph) * math.sin(math.pi * u) * .14)
+            birds.append((t + k * .13, chirp))
+        t += rng.uniform(1.6, 4.0)
+    out = [a + b for a, b in zip(out, mix(*birds) + [0.0] * n)]
+    return out
+
+
+STREAMS = {"title": (title_music, .75), "ambience": (ambience, .5)}
+
 SOUNDS = {
     "hop": (hop, .55), "bump": (bump, .6), "land_log": (land_log, .7), "land_lily": (land_lily, .6),
     "coin": (coin, .8), "squash": (squash, .95), "splash": (splash, .85), "bell": (bell_ding, .7),
@@ -197,6 +283,7 @@ def main():
     parser.add_argument("--output", type=Path, default=root / "game" / "sfx")
     parser.add_argument("--wav", type=Path, help="Also keep the WAVs here (for listening on the host)")
     parser.add_argument("--athena", type=Path, default=Path(os.environ.get("ATHENA_ENV", Path.home() / "AthenaEnv")))
+    parser.add_argument("--music", type=Path, default=root / "game" / "music")
     args = parser.parse_args()
     encoder = args.athena / "tools" / "wav2adp.js"
     if not encoder.is_file():
@@ -212,6 +299,12 @@ def main():
             adp = args.output / (name + ".adp")
             subprocess.run(["node", str(encoder), str(wav), str(adp)], check=True, capture_output=True)
             print(f"{name:9s} {len(samples) / RATE:5.2f} s  {adp.stat().st_size:6d} bytes")
+    args.music.mkdir(parents=True, exist_ok=True)
+    for name, (build, peak) in STREAMS.items():
+        samples = normalise(build(), peak)
+        wav = args.music / (name + ".wav")
+        write_wav(wav, samples)
+        print(f"{name:9s} {len(samples) / RATE:5.2f} s  {wav.stat().st_size:6d} bytes (stream)")
 
 
 if __name__ == "__main__":

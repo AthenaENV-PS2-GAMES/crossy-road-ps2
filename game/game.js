@@ -5,7 +5,7 @@ import {createPlayer, requestMove, resetPlayer, update as updatePlayer, carry, p
 import {createRows, resetRows, beginRows, stepRows, advanceRows, updateRows, rowKind, isBlocked,
     groundY, logAt, hazardAt, difficulty, slotOf, takeCoin, WATER} from "./rows.js";
 
-export const PLAYING = 0, DEAD = 1;
+export const PLAYING = 0, DEAD = 1, TITLE = 2;
 export const CAR_HIT = 1, TRAIN_HIT = 2, DROWNED = 3, SWEPT = 4, EAGLE = 5;
 
 export function createGame(t) {
@@ -14,7 +14,7 @@ export function createGame(t) {
     const game = {
         t, rows: createRows(t), nextRows: createRows(t), nextReady: false, world: null, player: null,
         state: PLAYING, cause: 0, deadTime: 0, deathX: 0, deathZ: 0,
-        score: 0, top: 0, deaths: 0, restarts: 0, run: 0,
+        score: 0, top: 0, startTop: 0, deaths: 0, restarts: 0, run: 0,
         riding: -1, scrollZ: 0,
         coins: 0, coinTaken: false, // Session total; coinTaken is true on the collecting update.
     };
@@ -40,6 +40,7 @@ function newRun(game, run) {
     game.cause = 0;
     game.deadTime = 0;
     game.score = 0;
+    game.startTop = game.top; // Best before this run, for the game-over "NEW TOP".
     game.riding = -1;
     game.scrollZ = game.t.player.start[1];
 }
@@ -49,6 +50,16 @@ export function resetGame(game) {
     resetRows(game.rows, runSeed(game.t, 0));
     newRun(game, 0);
     game.top = game.deaths = game.restarts = game.coins = 0;
+}
+
+// Title screen over the first run's rows: traffic moves, the eagle waits;
+// any direction or restart button starts the run (a direction also hops).
+export function showTitle(game) {
+    game.state = TITLE;
+}
+
+export function newTop(game) {
+    return game.score > game.startTop;
 }
 
 export function canRestart(game) {
@@ -76,6 +87,10 @@ export function updateGame(game, dt, dir, restart) {
     const rows = game.rows;
     game.coinTaken = false;
     updateRows(rows, dt);
+    if (game.state === TITLE) {
+        if (!restart && dir < 0) return;
+        game.state = PLAYING;
+    }
     if (game.state === DEAD) {
         game.deadTime += dt;
         if (!game.nextReady) game.nextReady = stepRows(game.nextRows, t.rows.prepareRows);

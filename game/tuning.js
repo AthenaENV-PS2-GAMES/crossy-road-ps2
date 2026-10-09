@@ -74,9 +74,10 @@ export const tuning = {
         flatY: .14, flatXZ: 1.35,
         sinkSeconds: .45,
     },
-    hud: {font: "fonts/retro.ttf", fontSize: 32, x: 18, y: 14, topSize: 16, coinSize: 24},
+    hud: {font: "fonts/retro.ttf", fontSize: 32, x: 18, y: 14, topSize: 16, coinSize: 24,
+        title: ["CHICKEN", "HOP"], titleSize: 48}, // Title screen lines (font: digits, A-Z, space).
     pools: {
-        grass: 24, grass_alt: 24, road: 24, road_marked: 24, water: 24, rail: 24,
+        grass: 24, grass_alt: 24, grass_b: 24, grass_alt_b: 24, ripple: 24, road: 24, road_marked: 24, water: 24, rail: 24,
         tree: 150, tree_tall: 60, rock: 30,
         car_purple: 22, car_cyan: 22, car_orange: 22, truck: 20,
         log2: 24, log3: 24, log4: 20,
@@ -100,11 +101,16 @@ export const tuning = {
         panWidth: 8, panMax: 70, // Cells from the camera centre to full pan; pan cap (of 100).
         near: 2, far: 9, // Rows: full volume within near, silent beyond far (trains, bells).
         gain: {hop: .55, land_log: .8, land_lily: .7, bell: .6},
+        streamVolume: {title: 70, ambience: 55}, fadeMs: 700,
     },
     juice: {
         shakeSeconds: .35, shakeAmount: .22, // Camera shake on car/train hits.
         logDip: .07, dipSeconds: .25, // Log/lily pad sinks a little when landed on.
         lilyBob: .015, // Idle lily pad bobbing.
+        breathe: .035, breatheRate: 5, // Idle chicken: vertical squash amount, rad/s.
+        lookYaw: .55, lookRate: .9, // Title screen: the chicken looks around.
+        rippleDrift: .35, rippleStill: .18, // Water streaks: share of the row speed; cells/s on still rows.
+        panelFade: .3, // Game-over panel fade-in, seconds.
     },
     measurement: {cpuFrames: 600, maxEvents: 64},
 };

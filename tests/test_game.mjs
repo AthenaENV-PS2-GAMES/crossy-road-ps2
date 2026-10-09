@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {tuning} from "../game/tuning.js";
 import {UP, DOWN} from "../game/player.js";
 import {slotOf, rowKind, resetRows, GRASS, ROAD, WATER, RAIL, LOG, LILY, CAR, TRAIN_PASS} from "../game/rows.js";
-import {createGame, updateGame, resetGame, canRestart, runSeed, PLAYING, DEAD,
+import {createGame, updateGame, resetGame, canRestart, runSeed, showTitle, newTop, PLAYING, DEAD, TITLE,
     CAR_HIT, TRAIN_HIT, DROWNED, SWEPT, EAGLE} from "../game/game.js";
 
 const DT = 1 / 60;
@@ -24,6 +24,29 @@ function force(g, z, kind, vel = 0, movers = []) {
     });
     return s;
 }
+
+test("title screen waits without the eagle, then a hop starts the run", () => {
+    const g = createGame(tuning);
+    showTitle(g);
+    step(g, 60 * 30);
+    assert.equal(g.state, TITLE);
+    assert.equal(g.deaths, 0);
+    assert.equal(g.scrollZ, tuning.player.start[1]);
+    hop(g, UP);
+    assert.equal(g.state, PLAYING);
+    assert.equal(g.player.z, tuning.player.start[1] - 1);
+});
+
+test("title screen: X starts without hopping; new top is per run", () => {
+    const g = createGame(tuning);
+    showTitle(g);
+    step(g, 1, -1, true);
+    assert.equal(g.state, PLAYING);
+    assert.equal(g.player.hops, 0);
+    assert.equal(newTop(g), false);
+    hop(g, UP);
+    assert.equal(newTop(g), g.score > 0);
+});
 
 test("landing in open water drowns", () => {
     const g = createGame(tuning);
